@@ -1,0 +1,10 @@
+# 本地私有数据：路径、画像、凭据、事实缓存。绝不进仓库。
+.local/
+.claude/local/
+
+.DS_Store
+__pycache__/
+*.pyc
+*.pem
+*.key
+cookies.txt
