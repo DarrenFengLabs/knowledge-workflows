@@ -7,14 +7,19 @@
 
 它做两件事：
 1) 体检飞书 `*斜体*` / `**加粗**` 是否会失效——CommonMark/飞书规则下，强调标记的
-   **紧贴侧字符**若是空格、换行、任何全角标点、或引号，强调就不渲染、原样显示星号。
-   口诀：开标记看右侧、闭标记看左侧，紧贴侧必须是"实义文字"。命中即打印、计入"违规"。
-   （正常应为 0：落笔时就把标点/引号甩到标记外侧，脚本只是最后一道保险。）
-2) 报出**斜体数 / 金句引用块数 / 表格数 / 字数**——这些是"强调密度"的体检指标。
+   紧贴侧字符若是空格、换行、任何全角标点、或引号，强调就不渲染、原样显示星号。
+   口诀：开标记看右侧、闭标记看左侧，紧贴侧必须是"实义文字"。
+   失效、未闭合的强调都计入"违规"。（正常应为 0：落笔时就把标点/引号甩到标记外侧，
+   脚本只是最后一道保险。）
+2) 报出斜体数 / 金句块数 / 表格数 / 字数——这些是"强调密度"的体检指标。
    用相对判据看：和当天内容量是否匹配；明显偏少或整篇滑成"列点平铺"，就回去补
    斜体/金句/表格。数字是参考信号、不是必须达到的硬门槛。
 
-退出码：有任何强调标记违规则返回 1，便于在脚本里串联。
+按行解析，不把这些星号当强调：代码块和行内代码里的星号、行首的列表星号、
+转义的 \\*、分隔线 ***。金句块按连续的 `>` 行计一块；表格按分隔行计一张
+（`|---|`、`| --- |`、`|:---:|` 等写法都认）。
+
+退出码：有任何违规则返回 1，便于在脚本里串联。
 """
 import re
 import sys
@@ -25,46 +30,86 @@ BAD = set(' \t\n　。，、；：？！…—·（）【】「」『』《》�
     ['"', "'", '“', '”', '‘', '’']
 )
 
+FENCE = re.compile(r'^\s*(```|~~~)')
+INLINE_CODE = re.compile(r'`[^`\n]*`')
+LIST_STAR = re.compile(r'^(\s*)\*(?=\s)')
+RULE = re.compile(r'^\s*(\*\s*){3,}$')
+BOLD = re.compile(r'\*\*([^*\n]+?)\*\*')
+TABLE_SEP = re.compile(r'^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$')
+
+
+def _bad_edge(inner):
+    return not inner or inner[0] in BAD or inner[-1] in BAD
+
+
+def analyze(text):
+    """返回 {'problems': [(行号, 类型, 摘录)], 'italics', 'quotes', 'tables', 'chars'}。"""
+    problems = []
+    italics = quotes = tables = 0
+    in_code = False
+    prev_quote = False
+
+    for no, raw in enumerate(text.splitlines(), 1):
+        if FENCE.match(raw):
+            in_code = not in_code
+            prev_quote = False
+            continue
+        if in_code:
+            continue
+
+        is_quote = raw.lstrip().startswith('>')
+        if is_quote and not prev_quote:
+            quotes += 1
+        prev_quote = is_quote
+
+        if '|' in raw and TABLE_SEP.match(raw):
+            tables += 1
+            continue
+        if RULE.match(raw):
+            continue
+
+        line = raw.replace('\\*', '')
+        line = INLINE_CODE.sub('C', line)
+        line = LIST_STAR.sub(r'\1-', line)
+
+        def bold(m):
+            if _bad_edge(m.group(1)):
+                problems.append((no, '加粗失效', m.group(1)[:32]))
+            return 'B'
+
+        line = BOLD.sub(bold, line)
+        if '**' in line:
+            problems.append((no, '加粗未闭合', raw.strip()[:32]))
+            line = line.replace('**', '')
+
+        stars = [i for i, ch in enumerate(line) if ch == '*']
+        for a, b in zip(stars[0::2], stars[1::2]):
+            italics += 1
+            if _bad_edge(line[a + 1:b]):
+                problems.append((no, '斜体失效', line[a + 1:b][:32]))
+        if len(stars) % 2:
+            problems.append((no, '斜体未闭合', raw.strip()[:32]))
+
+    return {
+        'problems': problems,
+        'italics': italics,
+        'quotes': quotes,
+        'tables': tables,
+        'chars': len(text),
+    }
+
 
 def check_one(path):
-    s = open(path, encoding='utf-8').read()
-    bad = 0
-
-    # 加粗 **...**
-    for m in re.finditer(r'\*\*([^*\n]+?)\*\*', s):
-        inner = m.group(1)
-        if inner and (inner[0] in BAD or inner[-1] in BAD):
-            print(f'  加粗X: {inner[:32]}')
-            bad += 1
-
-    # 斜体 *...*（排除 ** 的单星）
-    pos = [
-        i for i in range(len(s))
-        if s[i] == '*'
-        and (i == 0 or s[i - 1] != '*')
-        and (i + 1 >= len(s) or s[i + 1] != '*')
-    ]
-    for k in range(0, len(pos) - 1, 2):
-        a, b = pos[k], pos[k + 1]
-        if s[a + 1] in BAD or s[b - 1] in BAD:
-            print(f'  斜体X: {s[a + 1:b][:32]}')
-            bad += 1
-
-    italics = len(pos) // 2
-    quotes = len(re.findall(r'(?m)^>', s))
-    tables = s.count('|---')
-    chars = len(s)
-    bold_paired = s.count('**') % 2 == 0
-    star_paired = len(pos) % 2 == 0
-
+    r = analyze(open(path, encoding='utf-8').read())
     print(f'[{path}]')
+    for no, kind, excerpt in r['problems']:
+        print(f'  第 {no} 行 {kind}: {excerpt}')
+    print(f"  违规: {len(r['problems'])}")
     print(
-        f'  违规: {bad} | **成对: {bold_paired} | *单星成对: {star_paired}'
+        f"  斜体: {r['italics']} | 金句块: {r['quotes']} | "
+        f"表格: {r['tables']} | 字数: {r['chars']}"
     )
-    print(
-        f'  斜体: {italics} | 金句>块: {quotes} | 表格行: {tables} | 字数: {chars}'
-    )
-    return bad
+    return len(r['problems'])
 
 
 def main(argv):

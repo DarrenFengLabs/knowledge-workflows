@@ -27,7 +27,8 @@ notes-with-media/
 └── scripts/
     ├── extract_docx.py     # 从 .docx 抽纯文本（标准库，支持多文件/glob）
     ├── extract_pptx.py     # 从课件 .pptx 按页抽文字（可带演讲者备注）
-    └── check_format.py     # 写完后的飞书强调标记体检 + 密度自检
+    ├── check_format.py     # 写完后的飞书强调标记体检 + 密度自检
+    └── test_check_format.py  # check_format.py 的回归测试
 ```
 
 ## 第一次用：开工前对齐 6 件事（SKILL §0）
@@ -69,12 +70,12 @@ python3 scripts/extract_pptx.py "~/课件/第3讲.pptx" --notes > /tmp/ppt.txt
 # 3) 笔记写完后体检（强调标记违规 + 密度指标）
 python3 scripts/check_format.py "~/笔记/2026-06-04.md"
 #   输出示例：
-#   违规: 0 | **成对: True | *单星成对: True
-#   斜体: 28 | 金句>块: 19 | 表格行: 6 | 字数: 9000
+#   违规: 0
+#   斜体: 28 | 金句块: 12 | 表格: 3 | 字数: 9000
 #   —— 违规必须为 0；斜体/金句/表格看是否和当天内容量匹配，偏少就回去补。
 ```
 
-`check_format.py` 在有强调标记违规时返回退出码 1，方便串进你自己的脚本。
+`check_format.py` 在有强调标记违规（失效或未闭合）时逐条列出行号，并返回退出码 1，方便串进你自己的脚本。代码块、行内代码和列表星号不会被当成强调。改了这个脚本后，运行 `python3 scripts/test_check_format.py` 确认测试仍全部通过。
 
 ## 整理出来长什么样（SKILL §8）
 
