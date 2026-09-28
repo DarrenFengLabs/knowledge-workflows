@@ -49,8 +49,9 @@ description: 将单篇或少量外部文章、视频、播客、本地音视频�
 2. 建立本次任务的暂存目录，获取或抽取完整原文。
 3. 对远程内容核实发布时间、原标题、原文链接和来源；核实不到就写“未注明”或 `〔?〕`。
 4. 按 [references/optimize.md](references/optimize.md) 整理全文；英文做英中段落对照。
-5. 按 [references/storage.md](references/storage.md) 查重、命名、写入和报告。
-6. 若出现“明确模型/工具名 + 至少一个可复核硬锚点”，按 [references/model-table-handoff.md](references/model-table-handoff.md) 在成品末尾附“拟入表”；只提议，不写表。
+5. 交付前核对一致性：正文提到的日期与星期、发布时间、全文规模（字数与时长）、正文里的数字与图表是否互相吻合。原文自身的矛盾照录，在该处标 `〔?〕`，不替原文改成“合理值”。
+6. 按 [references/storage.md](references/storage.md) 查重、命名、写入和报告。
+7. 若出现“明确模型/工具名 + 至少一个可复核硬锚点”，按 [references/model-table-handoff.md](references/model-table-handoff.md) 在成品末尾附“拟入表”；只提议，不写表。
 
 ## 完整性红线
 
