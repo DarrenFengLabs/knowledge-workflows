@@ -48,6 +48,10 @@ class CheckFormatTest(unittest.TestCase):
         text = '| a | b |\n| --- | :---: |\n| 1 | 2 |\n\n|x|y|\n|---|---|\n|1|2|\n'
         self.assertEqual(analyze(text)['tables'], 2)
 
+    def test_h1_is_violation(self):
+        self.assertEqual(kinds('# 标题\n'), ['一级标题'])
+        self.assertEqual(kinds('```\n# 代码注释\n```\n## 栏目\n'), [])
+
     def test_horizontal_rule_ignored(self):
         self.assertEqual(kinds('***\n'), [])
 

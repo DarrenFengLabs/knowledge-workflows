@@ -9,7 +9,7 @@
 1) 体检飞书 `*斜体*` / `**加粗**` 是否会失效——CommonMark/飞书规则下，强调标记的
    紧贴侧字符若是空格、换行、任何全角标点、或引号，强调就不渲染、原样显示星号。
    口诀：开标记看右侧、闭标记看左侧，紧贴侧必须是"实义文字"。
-   失效、未闭合的强调都计入"违规"。（正常应为 0：落笔时就把标点/引号甩到标记外侧，
+   失效、未闭合的强调，以及 `#` 一级标题（飞书层级会乱），都计入"违规"。（正常应为 0：落笔时就把标点/引号甩到标记外侧，
    脚本只是最后一道保险。）
 2) 报出斜体数 / 金句块数 / 表格数 / 字数——这些是"强调密度"的体检指标。
    用相对判据看：和当天内容量是否匹配；明显偏少或整篇滑成"列点平铺"，就回去补
@@ -35,6 +35,7 @@ INLINE_CODE = re.compile(r'`[^`\n]*`')
 LIST_STAR = re.compile(r'^(\s*)\*(?=\s)')
 RULE = re.compile(r'^\s*(\*\s*){3,}$')
 BOLD = re.compile(r'\*\*([^*\n]+?)\*\*')
+H1 = re.compile(r'^#\s')
 TABLE_SEP = re.compile(r'^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$')
 
 
@@ -56,6 +57,9 @@ def analyze(text):
             continue
         if in_code:
             continue
+
+        if H1.match(raw):
+            problems.append((no, '一级标题', raw.strip()[:32]))
 
         is_quote = raw.lstrip().startswith('>')
         if is_quote and not prev_quote:
