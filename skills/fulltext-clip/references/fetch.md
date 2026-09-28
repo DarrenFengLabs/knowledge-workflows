@@ -176,7 +176,7 @@ yt-dlp --cookies-from-browser "firefox:$FIREFOX_YTDLP_PROFILE" "<URL>"
 ```
 
 - **关键纪律**:这个 profile 登录后**别再用它日常上网**。YouTube 会在你打开 YouTube 标签页时轮换 cookie,导致给 yt-dlp 的那份失效;闲置不动的会话最稳。
-- **`ytdlp` 不要当默认 profile**:直接打开 Firefox 用的是默认 profile。若 `profiles.ini` 里 `ytdlp` 那节有 `Default=1`,用户偶尔开 Firefox 上网也会用到它,cookie 随之轮换。请用户在 Firefox 地址栏打开 `about:profiles`,新建一个日常 profile 并设为默认。
+- **`ytdlp` 不要当默认 profile**:直接打开 Firefox 用的是默认 profile,`ytdlp` 是默认的话,用户偶尔开 Firefox 上网也会用到它,cookie 随之轮换。是不是默认,以 `about:profiles` 里的“默认配置文件:是/否”为准;在 `profiles.ini` 里要看 `[Install…]` 那节的 `Default=` 指向谁,`[Profile…]` 节里的 `Default=1` 是旧式标记,不作数(2026-09-28 实测:把日常 profile 设为默认后,`ytdlp` 那节仍留着 `Default=1`)。是默认的话,请用户在 `about:profiles` 新建一个日常 profile,点“设为默认配置文件”,再按 Cmd+Q 退出、重新打开 Firefox。
 - **YouTube 用小号**:yt-dlp 官方文档提醒,用账号抓 YouTube 可能被临时或永久封号,建议用不要紧的小号。`ytdlp` 里的 YouTube 登录小号即可。
 - **headless/定时任务**:在该 profile 里登录后,用浏览器扩展「Get cookies.txt LOCALLY」(Chrome)/「cookies.txt」(Firefox)**只导出一次**成 `cookies.txt`(macOS 用 LF 换行,首行须是 `# Netscape HTTP Cookie File`),然后 `yt-dlp --cookies ~/yt-dlp/cookies.txt "<URL>"`。
 - 诚实边界:「登录一次」现实里是**数周级**,不是永久——平台仍可能服务端失效会话,届时重登/重导一次即可。失效征兆:抓取突然要登录、JSON 解析失败。
