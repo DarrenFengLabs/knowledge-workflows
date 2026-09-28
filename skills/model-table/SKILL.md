@@ -26,6 +26,7 @@ description: 维护 AI 模型、AI 工具与模型评测的结构化表记录。
 - [references/import-rules.md](references/import-rules.md)：查证顺序、入表口径、归档与取代链；
 - [references/pricing-mechanics.md](references/pricing-mechanics.md)：价格字段与任务成本的区别；
 - [references/lark-cli.md](references/lark-cli.md)：查询、备份、写入和回读命令；
+- [references/lark-auth.md](references/lark-auth.md)：飞书授权的有效期、登录、续期与失效处理；
 - [references/intake.md](references/intake.md)：接收“拟入表”提议时的再核验流程。
 
 ## 强制流程

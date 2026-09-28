@@ -20,7 +20,7 @@
 
 ## 认证
 
-`lark-cli auth status` 看身份。user 身份显示 `needs_refresh` 是正常的，下次调用会自动刷新。写表需要 user 身份。
+写表需要 user 身份。授权的有效期、登录、续期和失效处理见 [lark-auth.md](lark-auth.md)；user 身份显示 `needs_refresh` 是正常的，下次调用会自动刷新。
 
 ## 备份怎么做
 
