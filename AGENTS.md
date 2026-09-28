@@ -14,7 +14,7 @@
 3. `fulltext-clip` 和 `reading-triage` 发现“明确型号或工具名 + 可复核硬锚点”时，只在产出末尾附“拟入表”提议；未获确认不得写表。
 4. `model-table` 只有在用户确认后才能执行“备份 → 写入 → 回读校验”。
 5. `.local/` 是项目私有配置，必须保持 Git 忽略；缺少所需配置时询问用户，不猜路径、ID 或凭据。
-6. 需要飞书用户授权时，按对应 skill 的 `references/lark-auth.md` 执行。在本项目里一次授够全项目用到的业务域 `--domain minutes,note,vc,docs,wiki,drive,base --exclude vc:meeting.realtime:read`，免得换个 skill 又要扫码。
+6. 需要飞书用户授权时，按对应 skill 的 `references/lark-auth.md` 执行。在本项目里登录时，把 `fulltext-clip` 与 `model-table` 两份权限清单合并去重后一次申请（共 57 项），免得换个 skill 又要扫码；不用 `--domain`，它会连带申请删除类权限。
 
 ## 长任务与批量任务
 
@@ -27,5 +27,5 @@
 - SKILL.md frontmatter 只用 Agent Skills 通用字段（`name`、`description`，必要时 `license`、`compatibility`、`metadata`、`allowed-tools`）。某个智能体的专属字段不写进正本：只认通用字段的渠道（如上传到 claude.ai 或 Skills API）会报错。
 - 规则写清目标、约束和理由；少用堆叠的粗体和“必须/绝不”，强调留给确实反复出错的规则。事实纪律、写表确认与备份回读是交付标准，任何时候都不删。
 - SKILL.md 保持在 500 行内；任何时候都适用的规则放在前面，细节放 `references/`。
-- `references/lark-auth.md` 在 `fulltext-clip` 与 `model-table` 各有一份，除开头一句、第 2 步的授权命令及其说明、二维码存放目录外保持一致；改一处同步另一处。
+- `references/lark-auth.md` 在 `fulltext-clip` 与 `model-table` 各有一份，除开头一句、“申请哪些权限”里的清单及说明、二维码存放目录外保持一致；改一处同步另一处。
 - 改完用真实样例回归；`notes-with-media` 用 `scripts/check_format.py` 对比改前改后的违规数与斜体、金句、表格数。
