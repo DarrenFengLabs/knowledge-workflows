@@ -1,16 +1,7 @@
-# Knowledge Workflows 项目路由
+@AGENTS.md
 
-本仓库包含四个职责互斥、可以独立安装的 skill。根据用户的输入与目标自动选择，不要求用户显式写 `$skill-name`。
+## Claude Code 补充
 
-- 单篇或少量外部文章、视频、播客、截图、短摘录，需要忠实转换成易读 Markdown：使用 `fulltext-clip`。
-- 用户亲自参与的课堂、会议或讲座材料，需要融合 ASR、手写、截图、照片、PPT/PDF：使用 `notes-with-media`。
-- 超过 5 条图文链接、聚合页、收藏夹、日报/周报，或用户要求分类、筛选、排优先级、按时间范围综述：使用 `reading-triage`。
-- 用户要求“更新模型表”“入表”“维护模型/工具记录”“归档模型”等结构化维护动作：使用 `model-table`。
-
-边界规则：
-
-1. 裸链接默认交给 `fulltext-clip`；若抓取后发现是含 5 条以上内容的聚合页，切换到 `reading-triage` 并告知用户。
-2. 多个视频/音频仍逐个走 `fulltext-clip`，不要仅因数量多就做阅读分诊。
-3. `fulltext-clip` 和 `reading-triage` 发现“明确型号或工具名 + 可复核硬锚点”时，只在产出末尾附“拟入表”提议；未获确认不得写表。
-4. `model-table` 只有在用户确认后才能执行“备份 → 写入 → 回读校验”。
-5. `.local/` 是项目私有配置，必须保持 Git 忽略；缺少所需配置时询问用户，不猜路径、ID 或凭据。
+- 自动压缩后，Claude Code 只重新附上每个 skill 的前 5,000 token，所以 AGENTS.md 里“压缩后重读 SKILL.md 全文”这条在这里一定要执行。
+- 推理强度用 `/effort` 或 `claude --effort <level>` 设置，不写进 SKILL.md。
+- 改完 skill 或本文件，可运行 `/doctor prompt-audit` 检查过时的指令、失效的路径和互相矛盾的规则。

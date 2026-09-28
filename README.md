@@ -17,8 +17,8 @@ skills/                 # 唯一正本；每个子目录都可独立安装
 .claude/skills/         # 另一种常见的项目级发现入口（相对符号链接）
 config.example/         # 可公开的配置模板
 .local/                 # 本机路径、ID、画像和事实缓存（Git 忽略）
-AGENTS.md                # 使用该约定的智能体项目路由
-CLAUDE.md                # 使用该约定的智能体项目路由
+AGENTS.md                # 所有智能体共用的路由、长任务与维护规则
+CLAUDE.md                # 导入 AGENTS.md，另附 Claude Code 专属说明
 ```
 
 ## 统一使用
@@ -48,6 +48,20 @@ ln -s "/absolute/path/knowledge-workflows/skills/fulltext-clip" \
 ```
 
 其他智能体只要能读取标准 `SKILL.md` 及同目录的 `references/`、`scripts/`，也可以直接使用或复制单个 skill 目录。若独立使用时当前项目没有 `.local/` 配置，skill 会询问本次任务所需路径，不会猜默认值。
+
+## 使用建议
+
+这些 skill 不绑定特定模型或智能体，只依赖读写文件、运行本地脚本，以及可选的读图能力。
+
+| 情况 | 做法 |
+|---|---|
+| 模型或智能体看不了图 | `notes-with-media` 与 `fulltext-clip` 会说明哪些图没读，请你提供文字版，不猜图中内容 |
+| 音视频 | 一律用本地 `whisper.cpp` 转写，不依赖模型直接听音频 |
+| 上下文较小 | 长转写与长文按 skill 里的规则分批读取、边做边写盘 |
+| 模型知识有截止日期 | `model-table` 的价格、参数、日期一律来自可复核来源，不用模型记忆 |
+| 模型可调推理强度 | 先用默认；`reading-triage` 的定级与综合、`model-table` 的核实出现遗漏时再调高；`fulltext-clip` 通常不需要 |
+
+换用新的模型或智能体后，用一份真实样例回归一次：`notes-with-media` 可用 `scripts/check_format.py` 对比前后的违规数与斜体、金句、表格数。
 
 ## 安全约定
 
