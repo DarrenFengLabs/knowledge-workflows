@@ -66,4 +66,3 @@ description: 将单篇或少量外部文章、视频、播客、本地音视频�
 
 - `scripts/transcribe_long_media.sh`：可恢复的分块音视频转写。
 - `scripts/merge_srt.py`：合并分块 SRT 并校正时间戳。
-
