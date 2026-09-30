@@ -1,75 +1,40 @@
-# 本地音视频转写
+# 本机转写
 
-使用本地 `whisper.cpp` 把音频或视频转成全文。除非用户另有要求，不上传媒体、不静默改用云端服务。
+音视频到原始文字由本机 `whisper.cpp` 完成，不上传媒体、不用云端转写额度；后续的校对、翻译和排版由当前智能体处理文字。除非用户另有要求，不静默改用云端服务。
+
+通常不用直接调用：`prep.py init` 遇到没有现成文字的音视频会自动转写。它会用标题、主播和节目时间轴里的话题词生成转写提示词（帮 whisper 写对专名），多篇同时准备时自动排队，本机一次只转一篇。
 
 ## 环境自检
 
-实际运行前检查环境，不依赖文档里的旧版本信息：
+转写失败或第一次使用时检查：
 
 ```bash
-for c in whisper-cli ffmpeg ffprobe; do
-  printf "%-12s %s\n" "$c" "$(command -v "$c" || echo '缺失')"
-done
+for c in whisper-cli ffmpeg ffprobe; do printf "%-12s %s\n" "$c" "$(command -v "$c" || echo '缺失')"; done
 test -f "$WHISPER_MODEL" || echo "模型缺失"
 ```
 
-缺少工具或模型时，先说明缺什么以及拟执行的安装动作；不要擅自换模型。常见安装方式：
+模型路径取自 `.local/paths.md` 的 `WHISPER_MODEL`，没有时询问用户。缺工具或模型时，先说明缺什么、拟执行的安装动作（如 `brew install whisper-cpp ffmpeg`），得到同意再装；不擅自换模型。
+
+## 直接调用脚本
+
+需要单独转写（比如准备脚本之外的文件）时，在 skill 根目录运行：
 
 ```bash
-brew install whisper-cpp ffmpeg
+bash scripts/transcribe_long_media.sh --input "<输入文件>" --job-dir "<任务目录>/asr" \
+  --language zh --prompt "专有名词：<按内容填写>" --model "$WHISPER_MODEL" --jobs 2
 ```
 
-模型路径从当前项目 `.local/paths.md` 的 `$WHISPER_MODEL` 取得；没有时询问用户。
+- 已知语言时写 `zh` 或 `en`，不确定才用 `auto`。
+- 它会分块、有限并发、失败重试一次、合并 SRT；用相同参数和目录可以断点续跑。
+- 进度只看 `asr/status.json`；失败时再看 `failed_chunks.txt` 和 `logs/` 里对应的日志。
+- `job.meta` 提示参数变了时，换一个新目录，不要混用旧分块。
 
-## 工作目录
+## 说话人
 
-从 [storage.md](storage.md) 取得 `$STAGING_DIR` 规则，为每个源文件建立独立 `$JOB_DIR`。用户源文件只读，不复制或移动到这个目录。
+whisper.cpp 不区分说话人。本机转写的文字按 write.md 的规则处理：只给能确定的主持人提问加 🎙️，其余不标。用户明确要求区分说话人时，再评估其他办法（平台带说话人的文字稿、飞书妙记转写、本机说话人分离工具），先说明成本和把握。
 
-```bash
-JOB_DIR="$STAGING_DIR/$(date +%Y-%m-%d_%H%M%S)_<内容短标识>"
-mkdir -p "$JOB_DIR"
-```
+## 失败
 
-## 推荐流程
-
-从 skill 根目录运行脚本。它会分块、有限并发、失败重试、合并 SRT，并允许使用相同参数和 `$JOB_DIR` 断点续跑：
-
-```bash
-bash scripts/transcribe_long_media.sh \
-  --input "<输入文件>" \
-  --job-dir "$JOB_DIR" \
-  --language auto \
-  --prompt "专有名词：<按内容填写>" \
-  --jobs 2
-```
-
-输出包括 `$JOB_DIR/transcript.txt`、`transcript.srt` 和 `status.json`。
-
-- 已知语言时用 `en` 或 `zh`，不确定才用 `auto`。
-- 已知的人名、产品和术语放入 `--prompt`，长稿仍需在优化阶段统一专名。
-- 超过 30 分钟的媒体必须用脚本，不临时拼接一长串命令。
-- 查询进度只读 `status.json`；失败时再读 `failed_chunks.txt` 与对应日志。
-- `job.meta` 显示参数变化时，新建 `$JOB_DIR`，不要混用旧分块。
-
-需要先确认音质或语言时，可在 `$JOB_DIR` 中制作短探针；探针不能替代完整转写。
-
-## 多文件与多人内容
-
-- 每个文件一个 `$JOB_DIR`、一份成品；除非用户明确说明它们是同一内容的分段，否则不要合并。
-- 单个文件失败时保留其目录并继续其他文件，最终分别报告。
-- `whisper.cpp` 不负责说话人分离。多人内容可按上下文人工标角色；若必须自动区分说话人，应先说明需要额外工具与权限。
-
-## 转写后
-
-1. 在成品完成前保留原始 `transcript.txt` 与 SRT 以便回退。
-2. 按 [optimize.md](optimize.md) 优化排版、统一专名；英文内容做英中段落对照。
-3. 按 [source-integrity.md](source-integrity.md) 核实来源四项，核实不到就标明。
-4. 按 [storage.md](storage.md) 查重并写入成品。
-5. 用 `ffprobe` 取得媒体时长，根据语种和语速检查转写规模是否明显截断；无法可靠估计时报告实际字数与时长。
-
-## 失败与访问权限
-
-若 ffmpeg 报 `Operation not permitted`，这是宿主应用或操作系统的文件访问权限问题。先实测具体路径是否可读；可请用户把文件移动到已授权目录，或为当前宿主授予访问权限。不要声称某个目录在所有机器上都可读。
-
-转写中断、输出为空或明显截断时，保留 `$JOB_DIR`，报告失败步骤、错误信息与已生成文件；不得用半截稿继续交付。
-
+- ffmpeg 报 `Operation not permitted`：宿主应用或系统的文件访问权限问题。先实测路径是否可读，可请用户把文件移到已授权的目录，或给宿主授权。
+- 转写中断、输出为空或明显截断：保留任务目录，报告失败步骤、错误信息和已生成的文件；不拿半截稿继续交付。
+- 多个文件时，一个失败就保留它的目录，接着处理其他文件，最后分别报告。

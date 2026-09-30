@@ -15,6 +15,8 @@
 skills/                 # 唯一正本；每个子目录都可独立安装
 .agents/skills/         # 一种常见的项目级发现入口（相对符号链接）
 .claude/skills/         # 另一种常见的项目级发现入口（相对符号链接）
+.claude/agents/         # Claude Code 的子代理角色（查询、写作、收尾），模型档位在这里配
+.codex/agents/          # Codex 的同名子代理角色
 config.example/         # 可公开的配置模板
 .local/                 # 本机路径、ID、画像和事实缓存（Git 忽略）
 AGENTS.md                # 所有智能体共用的路由、长任务与维护规则
@@ -56,12 +58,14 @@ ln -s "/absolute/path/knowledge-workflows/skills/fulltext-clip" \
 | 情况 | 做法 |
 |---|---|
 | 模型或智能体看不了图 | `notes-with-media` 与 `fulltext-clip` 会说明哪些图没读，请你提供文字版，不猜图中内容 |
-| 音视频 | 一律用本地 `whisper.cpp` 转写，不依赖模型直接听音频 |
+| 音视频 | 有平台字幕或文字稿就直接用；没有才用本地 `whisper.cpp` 转写，不依赖模型直接听音频 |
+| 批量处理 | 主对话只分派，每篇（长稿按块）交给子代理，每篇都在干净的上下文里做；获取、切块、拼装、检查由脚本完成（见 `fulltext-clip/references/dispatch.md`） |
 | 上下文较小 | 长转写与长文按 skill 里的规则分批读取、边做边写盘 |
 | 模型知识有截止日期 | `model-table` 的价格、参数、日期一律来自可复核来源，不用模型记忆 |
-| 模型可调推理强度 | 先用默认；`reading-triage` 的定级与综合、`model-table` 的核实出现遗漏时再调高；`fulltext-clip` 通常不需要 |
+| 模型可调推理强度 | 先用默认；`reading-triage` 的定级与综合、`model-table` 的核实出现遗漏时再调高 |
+| 想换便宜的模型 | 剪藏里认人、查证这类输出少、错了影响全篇的步骤留在强档；按工作单整理语言和翻译的步骤可以降一档，但先用 `.local/samples.md` 的样例对比，确认质量不降再换（在宿主的角色定义里改） |
 
-换用新的模型或智能体后，用一份真实样例回归一次：`notes-with-media` 可用 `scripts/check_format.py` 对比前后的违规数与斜体、金句、表格数。
+换用新的模型或智能体后，用一份真实样例回归一次：`fulltext-clip` 用 `scripts/check_clip.py` 检查成品；`notes-with-media` 可用 `scripts/check_format.py` 对比前后的违规数与斜体、金句、表格数。
 
 ## 安全约定
 

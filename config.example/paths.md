@@ -9,6 +9,8 @@
 | `OUTPUT_DIR` | `<最终 Markdown 输出目录的绝对路径>` |
 | `STAGING_DIR` | `<中间产物暂存目录的绝对路径>` |
 | `WHISPER_MODEL` | `<whisper.cpp 模型文件的绝对路径>` |
+| `FIREFOX_YTDLP_PROFILE` | `<可选：Firefox 专用配置 ytdlp 的目录完整路径，B站字幕等需要登录时用>` |
+| `YTDLP_COOKIES_FILE` | `<可选：X 等单站导出的 cookies.txt 的私有位置，权限 600>` |
 
 确认 `$STAGING_DIR` 是否会被云盘同步；大型媒体、字幕与数据库备份通常应放在不自动同步的目录。路径可能含空格，shell 中始终加双引号。
 

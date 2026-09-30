@@ -1,213 +1,86 @@
-# 远程抓取策略(模式 A:视频/播客 URL)
+# 获取与排障
 
-目标:从链接拿到**全文文字稿**。借鉴成熟工具(BibiGPT、得到/Get笔记、通义听悟、Memo.ac)的共识做法,核心是一条**「字幕优先 → 音频转写兜底 → 搜索兜底」**的路由,按成本从低到高走。
+获取由 `scripts/prep.py init` 按平台自动完成，顺序是“现成文字 → 本机转写 → 给出失败码”，按成本从低到高。平台自带字幕就不重复转写；没有字幕的（多数播客、视频号、抖音、推文）直接转写。本文件在两种时候读：准备脚本报了失败码；或者需要配置登录态。
 
-## 总原则:按成本从低到高依次尝试
+## 各平台做法
 
-1. **现成字幕/CC**(零成本、秒级,且最准)— YouTube、Bilibili 等平台原生有
-2. **音频转写**(下音频 → 走 `transcribe.md`,本地 whisper.cpp)— 平台无字幕时
-3. **兜底搜索**(找搬运版或他人整理的全文)
-4. **明确失败**,给用户手动方案
+| 平台 | 元信息 | 文字（按优先顺序） | 小标题线索 | 注意 |
+|---|---|---|---|---|
+| 小宇宙 | 网页数据：标题、精确发布时间、时长、节目、主播、简介 | 本机转写（网页没有文字稿） | 简介里的时间轴 | 日期按北京时间；付费单集可能拿不到音频 |
+| Apple Podcasts、RSS | Apple 公开查询接口 → RSS | RSS 里创作者提供的文字稿 → 本机转写 | 简介时间轴 | 查询接口只列最近 300 集 |
+| YouTube | yt-dlp | 原语言人工字幕 → 自动字幕 → 本机转写 | 视频章节 | 不用机器翻译的字幕轨；“>>”只当换人线索 |
+| B站 | yt-dlp | UP 主字幕 → AI 字幕 → 本机转写 | 分段章节 | 字幕要登录；排除弹幕轨 |
+| X | yt-dlp | 本机转写 | — | 公开推文常可匿名下载，受保护的要 cookie 文件 |
+| 抖音、小红书 | 试一次 yt-dlp | 本机转写 | — | 常失败，失败就换专用工具或请用户导出 |
+| 视频号 | 无公开抓取途径 | 用户导出的文件 | — | 见下文“视频号” |
+| 飞书妙记 | lark-cli | 妙记逐字稿（带说话人标签） | 妙记章节只作参考 | 以用户身份读 |
+| 微信公众号 | 页面 | 正文区域原样抽取 | 原文小标题 | 只有短链接能直接抓 |
+| 一般网页 | 页面元信息与结构化数据 | 正文区域抽取；抽不全时用 `prep.py select` 指定起止段 | 原文小标题 | 付费墙不绕过 |
+| PDF | 文件属性 | pdftotext | 原文标题层级 | 扫描件按图片处理 |
 
-> 经验法则(成熟工具的共识):**平台自带字幕就先抓字幕,绝不无谓重转写;没有字幕的(播客、视频号、小红书、抖音、推文)直接走音频转写。** 不要对已有字幕的视频浪费转写时间,也不要指望对无字幕视频「抓字幕」。
+对谈、多人播客如果有平台现成的带说话人文字稿（飞书妙记等），优先用它：本机转写不区分说话人。
 
-每拿到一份候选文本,先做文末「完整性校验」,通过才算成功。同时按文末「元信息采集」把背景/互动数据一并抓下来。
+## 失败码怎么处理
 
-## 0. 开工准备:工作目录 + 工具版本
+| 失败码 | 常见原因 | 处理 |
+|---|---|---|
+| NEED_LOGIN | B站字幕、YouTube 机器人验证、X 受保护内容、飞书授权失效 | 按下文“登录与授权”配置后重跑；飞书按 lark-auth.md |
+| NEED_UPGRADE | yt-dlp 过旧（签名算法、接口变了） | 先看 `yt-dlp --version`，比今天早几个月就该升。升级前先向用户报一句当前版本、判断依据和要跑的命令（`brew upgrade yt-dlp` 或 `yt-dlp -U`），它动的是用户的共享环境；用户说过“直接升”就不必再问 |
+| BLOCKED | 平台签名或风控；缺少模拟浏览器的依赖 | YouTube 403：挂 cookie → 装 PO Token 插件 `bgutil-ytdlp-pot-provider` → `--extractor-args "youtube:player_client=tv,web"`。抖音换 `Johnserf-Seed/f2`，小红书换 `JoeanAmier/XHS-Downloader`，或请用户导出 |
+| UNSUPPORTED | 视频号；公众号长链接 | 视频号见下文；公众号请用户给短链接（`mp.weixin.qq.com/s/…`）或复制正文 |
+| PAID | 付费单集 | 请用户提供音频或文字稿文件 |
+| NOT_FOUND、NO_TEXT | 链接错、已下架；页面要登录或由脚本动态加载 | 核对链接；请用户复制正文或提供文件 |
+| PARTIAL | 网页正文可能没抽全 | 看 `source.md` 的段号，`prep.py select --from pA --to pB` |
+| TRANSCRIBE_FAILED | 转写环境或文件问题 | 见 transcribe.md |
 
-**① 建当次任务的工作目录**(所有下载物、字幕、元信息 JSON 都落这里,定义见 `storage.md`「中间产物」):
+失败时任务目录原样保留，报告里写明路径和已经拿到的东西（音频下到一半、字幕不完整等），重试往往能直接复用。
 
-```bash
-STAGING_DIR="$STAGING_DIR"
-JOB_DIR="$STAGING_DIR/$(date +%Y-%m-%d_%H%M%S)_<内容短标识>"
-mkdir -p "$JOB_DIR"
-```
+## 兜底搜索
 
-**绝不要**用相对路径下载(`-o "audio.%(ext)s"` 之类)——那会落在当前工作目录,而当前工作目录常常是 skill 自己的项目目录。
+抓不到时，找同一内容的可抓取版本或他人整理的全文：
 
-**② 各平台反爬/签名是动态变化的,失败时第一反应是升级 yt-dlp,而不是反复试**:
+1. 找搬运和多平台分发：搜“标题 + 作者/频道名”。视频号内容常同步到公众号或 B站。命中后换这个链接重跑准备脚本。
+2. 找现成全文：搜“标题 + 全文/实录/文字稿/transcript”，打开读取正文。
+3. 两轮都失败就停，向用户报告尝试过的途径、失败原因和手动方案（用户自行下载后给文件路径）。
 
-```bash
-yt-dlp --version            # 版本号形如 YYYY.MM.DD,比今天早几个月就该升
-```
+搜索结果大量是摘要和解读，标题含“总结、要点、划重点、takeaways”的基本排除。任何候选文字都要过完整性检查：文字量不足按时长估算下限的 60% 就不能当全文。
 
-版本确实旧了再升,**升级前先报一句**(当前版本 / 判断依据 / 要跑的命令)——`brew upgrade` 动的是用户机器上的共享环境,不是本任务的沙盒,别静默执行;用户说过"直接升"就不必再问:
+## 登录与授权
 
-```bash
-brew upgrade yt-dlp || yt-dlp -U
-```
-
-(本文档不写死「当前版本是多少」——那种断言几个月就会腐坏。以 `--version` 的实际输出和今天的日期对比为准。)
-
-## 1. 现成字幕
-
-```bash
-# 先列出可用字幕轨(逐视频确认,不同视频字幕码不同)
-yt-dlp --list-subs "<URL>"
-
-# 下载字幕(人工字幕优先),不下视频
-yt-dlp --skip-download --write-subs --write-auto-subs \
-  --sub-langs "zh.*,en.*,ai-zh,ai-en" --convert-subs srt \
-  -o "$JOB_DIR/%(title)s.%(ext)s" "<URL>"
-```
-
-拿到 .srt/.vtt 后:去时间戳和序号,合并成连续文本。**自动字幕(auto-subs)常有逐句重叠(rolling captions),必须去重。** 字幕只是原料,之后仍走 `optimize.md` 做断句、分段、错字与专名修正。
-
-## 2. 音频转写(无字幕时)
-
-```bash
-# 只抽音频,不下视频
-yt-dlp -x --audio-format m4a --audio-quality 0 -o "$JOB_DIR/audio.%(ext)s" "<URL>"
-```
-
-拿到音频后 → **读 `transcribe.md`**(本地 whisper.cpp,全程本地不消耗额度)。中文内容务必显式指定语言;转写稿保留原始副本以便回退。
-
-## 3. 各平台策略(2026)
-
-### YouTube — yt-dlp 全流程最成熟
-- 字幕覆盖率高,优先抓字幕(含 auto-subs)。音频:`yt-dlp -f bestaudio[ext=m4a]/bestaudio -x --audio-format m4a "<URL>"`
-- **2026 新坑**:PO Token / "Sign in to confirm you're not a bot" 机器人墙、SABR 强制流。表现为 403 或 "formats have been skipped"。
-  - 解法①:挂 cookies(见第 5 节登录与授权)。
-  - 解法②:仍报错时装 PO-token 插件 `bgutil-ytdlp-pot-provider`(yt-dlp ≥ 2025.05),Docker/HTTP 模式跑在 `127.0.0.1:4416`,yt-dlp 会自动调用。
-  - 解法③:`--extractor-args "youtube:player_client=tv,web"` 换客户端;限速/"Only images available" 多是 nsig 问题,**升级 yt-dlp** 即可。
-- 注意:`ios` 客户端会忽略 cookies,需登录态时别用。
-
-### Bilibili(B站)— yt-dlp 支持,字幕需登录
-- **AI 字幕码是 `ai-zh` / `ai-en`,属真字幕轨,用 `--write-subs`(不是 auto-subs)**;UP 上传的 CC 字幕码形如 `zh-Hans`。先 `--list-subs` 看实际码。
-- **字幕在 2026 基本必须登录态**(报 "Subtitles are only available when logged in");高清/高码率音频也需登录。挂 cookies:`--cookies-from-browser "firefox:$FIREFOX_YTDLP_PROFILE"`(见第 5 节)。关键 cookie 是 `SESSDATA`(约半年有效)。
-- 坑:`--sub-langs` 里排除 `danmaku`(弹幕轨),否则 `--embed-subs` 会报 "Invalid data"。用 `--sub-langs "ai-zh,-danmaku"`。
-- B站「AI 小助手」总结不在字幕轨,抓不到属正常,走音频转写。
-
-### Twitter / X — 无字幕,必须登录,直接转写
-- 推文视频无字幕轨 → 抽音频走转写。
-- **2026 匿名访问基本关闭**,需 cookies(`auth_token` + `ct0`)。对受保护推文,**导出 `cookies.txt` 比 `--cookies-from-browser` 更稳**:`yt-dlp --cookies cookies.txt -x --audio-format m4a "<URL>"`。
-- 报 "Failed to parse JSON" 多是 `ct0` 过期,重新导出 cookies;GraphQL 偶发失效 → 升级 yt-dlp。
-
-### 小宇宙(Xiaoyuzhou)— 无 extractor,抓 og:audio 直链
-- yt-dlp **无原生 extractor**,但**无需登录、无反爬**:单集页 `<head>` 里 `og:audio` 是 `media.xyzcdn.net` 的**未签名 m4a 直链**。
-```bash
-url=$(curl -sL "<单集页URL>" | grep -oE 'og:audio[^>]*content="[^"]+"' | sed 's/.*content="//;s/".*//')
-curl -L -o "$JOB_DIR/ep.m4a" "$url"   # 已是 m4a,直接转写
-```
-- 找不到 `og:audio` 时,在页面 `__NEXT_DATA__` JSON 里找 `enclosure` 直链。下载后走转写。付费/会员单集可能不暴露直链〔未验证〕→ 走兜底。
-
-### 视频号(微信)— 无公开抓取路径
-- **链接无法直接下载**:流是加密的、绑定微信客户端会话的短时签名 URL。yt-dlp 不支持,headless 无解。
-- 现实路径(任选):
-  1. **MITM 抓取工具** `ltaoo/wx_channels_download`:装根证书+系统代理,在微信 PC 端打开该视频,工具自动捕获并解密(首 131072 字节 XOR 解密)。
-  2. **请用户手动录制/导出**后把文件路径给我 → 转模式 A-本地(`transcribe.md`)。
-- 不要在抓取上反复尝试,直接走上述两条之一或兜底搜索(视频号内容常同步发到公众号/B站)。
-
-### 抖音(Douyin)— 脆弱,先试一次即走兜底
-- 短视频无字幕 → 音频转写。yt-dlp 的 douyin extractor 受 `a_bogus` 签名风控影响,常报 "Fresh cookies needed"(缺 `s_v_web_id`)。
-- 先试一次 `yt-dlp -x --audio-format m4a --cookies-from-browser "firefox:$FIREFOX_YTDLP_PROFILE" --impersonate chrome "<URL>"`;失败即换专用工具 `Johnserf-Seed/f2`(内部签 `a_bogus`、无水印),或走兜底。失败很常见,属预期。
-
-### 小红书(Xiaohongshu / RED)— 最脆弱,优先专用工具
-- 视频笔记无字幕 → 音频转写。`XiaoHongShuIE` 常坏(`x-s`/`x-t` 签名 + 域名迁移 `rednote.com`)。
-- 先在最新 yt-dlp 上试 `--cookies-from-browser "firefox:$FIREFOX_YTDLP_PROFILE" --impersonate chrome`;坏了换 `JoeanAmier/XHS-Downloader`(活跃维护、无水印、CLI/GUI)。下载后走转写。
-
-### 飞书妙记 — 官方接口读逐字稿,需用户授权
-- yt-dlp 没有飞书的 extractor(2026.06.09 实测)。妙记自带逐字稿,相当于现成字幕,不用转写。
-- 走 lark-cli 官方接口、以用户身份读取:先按 `lark-auth.md` 检查授权,再按 lark-meeting skill 的「查询妙记及其产物」取逐字稿;`minute_token` 是妙记链接 `/minutes/` 后那一段。2026-09-28 实测可用(在 `$JOB_DIR` 里运行,输出目录只接受相对路径):
-  ```bash
-  lark-cli minutes minutes get --params '{"minute_token":"<token>"}' --as user   # 标题、时长、创建时间(均为毫秒)、所有者
-  lark-cli minutes +detail --as user --minute-tokens <token> --transcript --chapter --output-dir ./out
-  ```
-  逐字稿开头是录制时间与时长,接着是飞书 AI 生成的关键词,正文按「Speaker N 时:分:秒」分段。说话人只有编号,真名要从内容里认;关键词、章节、总结都是飞书 AI 产物,只作导航参考,不当原文照抄。所有者是别人的妙记,只要你有查看权限也能读(本次实测所有者不是用户本人)。
-- 读不到时(没有权限、妙记属于别的组织等),按顺序:请妙记所有者开权限 → 页面允许的话请用户导出文字记录或音视频,拿文件路径走本地流程 → 第 4 节兜底搜索。
-- 不用 Firefox cookie 去调飞书网页的内部接口:没有现成工具,飞书一改版就坏;而且飞书 cookie 等于整个飞书账号(消息、文档、审批都在里面),泄露代价远大于视频站。以上都走不通时,先向用户说明这些风险并取得同意,再讨论。
-
-## 4. 兜底搜索协议(抓取失败时)
-
-目标:找到**同一内容**的可抓取版本或他人整理的**全文**。按顺序:
-
-1. **找搬运/多平台分发**:WebSearch 搜「标题 + 作者/频道名」。常见命中:B站搬运、YouTube 镜像、播客同步版(视频号内容尤其常同步公众号或 B站)。命中后回第 1/2 步抓取。
-2. **找现成全文整理**:搜「标题 + 全文/实录/文字稿/transcript」,公众号文章常有演讲全文、访谈实录。命中后 WebFetch 抓正文。
-3. 两轮都失败 → 停止,向用户报告:尝试过的途径、失败原因、手动方案(用户自行下载后给文件路径,转模式 A-本地)。
-
-**抓取失败时 `$JOB_DIR` 原样保留、不要清理**,并在报告里给出路径和里面已有的东西(比如音频下到一半、字幕拿到了但不完整)——重试往往能直接复用,不必从头再下。清理规则见 `storage.md`「中间产物」。
-
-**警惕**:搜索结果大量是摘要、解读、要点笔记。标题含「总结/要点/划重点/takeaways」的基本排除;一切候选文本必须过完整性校验。
-
-## 5. 登录与授权(macOS,回答「能否记住登录不用每次登」)
-
-按来源选授权方式,顺序:能匿名就匿名 → 有官方接口就走官方授权 → 只能靠网页登录的用 Firefox cookie → 都不行就请用户手动导出,或走第 4 节兜底搜索。
+按来源选授权方式，顺序：能匿名就匿名 → 有官方接口就走官方授权 → 只能靠网页登录的用 Firefox cookie → 都不行就请用户手动导出，或走兜底搜索。先确认平台确实要求登录，再用最小范围的登录态。
 
 | 来源 | 方式 | 能维持多久 | 失效征兆 | 恢复 |
 |---|---|---|---|---|
-| 飞书妙记、飞书文档 | 官方授权(lark-cli,详见 `lark-auth.md`) | 刷新凭证官方示例 7 天,授权最长 365 天 | `need_user_authorization`、`refresh_token expired` | 重新扫码授权 |
-| YouTube | Firefox `ytdlp` profile 的 cookie;仍被拦再加 PO Token 插件 | 数周级 | 要求登录、机器人验证、403 | 在 `ytdlp` profile 里重新登录 |
+| 飞书妙记、飞书文档 | 官方授权（lark-cli，见 lark-auth.md） | 刷新凭证 7 天，授权最长 365 天 | `need_user_authorization`、`refresh_token expired` | 重新扫码授权 |
+| YouTube | Firefox `ytdlp` 配置的 cookie；仍被拦再加 PO Token 插件 | 数周 | 要求登录、机器人验证、403 | 在 `ytdlp` 配置里重新登录 |
 | B站 | 同上 | `SESSDATA` 约半年 | 提示字幕需登录 | 同上 |
-| X | 单站导出的 `cookies.txt` | `ct0` 会过期 | "Failed to parse JSON" | 重新导出 |
-| 抖音、小红书 | Firefox cookie + `--impersonate chrome`,常失败 | 不稳定 | "Fresh cookies needed"、签名错误 | 换专用工具或兜底 |
-| 小宇宙 | 无需登录 | — | — | — |
-| 视频号 | 无公开抓取路径 | — | — | 请用户手动导出 |
+| X | 单站导出的 cookies.txt，路径记在 `.local/paths.md` 的 `YTDLP_COOKIES_FILE` | `ct0` 会过期 | “Failed to parse JSON” | 重新导出 |
+| 抖音、小红书 | Firefox cookie，常失败 | 不稳定 | “Fresh cookies needed”、签名错误 | 换专用工具或兜底 |
+| 小宇宙 | 不需要 | — | — | — |
 
-飞书为什么不用 Firefox cookie,见第 3 节「飞书妙记」。
+**禁止 `--cookies-from-browser chrome`。** 任何情况下都不要对 Chrome、Edge、Arc 等 Chromium 系浏览器用它：macOS 上要去钥匙串取“Chrome Safe Storage”密钥，会弹授权框打断用户；用户拒绝后 yt-dlp 只会静默拿到 0 个 cookie，看起来像抓取失败。那把密钥还能解密 Chrome 里所有网站的 cookie，为抓字幕不应索取这么宽的权限。Safari 需要完全磁盘访问且格式脆弱，Arc、Dia 已知失效，同样不用。
 
-### 🚫 硬规则:禁止 `--cookies-from-browser chrome`
+**需要登录态时一律用 Firefox 的专用配置 `ytdlp`**（cookie 是明文数据库，不碰钥匙串），并写配置目录的完整路径：`--cookies-from-browser "firefox:$FIREFOX_YTDLP_PROFILE"`（准备脚本会从 `.local/paths.md` 读取）。路径缺失时读 `~/Library/Application Support/Firefox/profiles.ini`，把 `Name=ytdlp` 那节的 `Path=` 拼在 `~/Library/Application Support/Firefox/` 后面，确认目录存在后记进 `.local/paths.md`。只写 `firefox:ytdlp` 会找不到（Firefox 建的目录带随机前缀）；只写 `firefox` 会取最近修改的配置，多个配置时容易读错。
 
-**任何情况下都不要对 Chrome / Edge / Arc 等 Chromium 系浏览器用 `--cookies-from-browser`。** 它们在 macOS 上把 cookie 加密存放,yt-dlp 必须调 `security` 去钥匙串取「Chrome Safe Storage」密钥,这会**弹出钥匙串授权框打断用户**。钥匙串一旦自动上锁就每次都弹,而用户点「拒绝」后 yt-dlp 只会静默拿到 0 个 cookie(报 `Extracted 0 cookies (N could not be decrypted)`),看起来像抓取失败,实际是权限问题。
+- 一次性创建：`/Applications/Firefox.app/Contents/MacOS/firefox --no-remote -P ytdlp`，在弹出的窗口里登录 B站、YouTube、X 等后按 Cmd-Q 退出。之后抓取时保持这个 Firefox 窗口关闭。
+- 这个配置登录后别拿来日常上网：打开 YouTube 标签页会轮换 cookie，给 yt-dlp 的那份随之失效。它也不要当默认配置：是不是默认，以 `about:profiles` 里“默认配置文件：是/否”为准。
+- YouTube 用不要紧的小号，yt-dlp 官方文档提醒用账号抓取可能被封。
+- 定时任务等无界面场景：在该配置里登录后，用浏览器扩展只导出一次 cookies.txt（首行须是 `# Netscape HTTP Cookie File`），之后 `--cookies <文件>`。
+- “登录一次”现实里是数周级，平台仍可能让会话失效，届时重登或重导一次即可。
 
-那把密钥能解密 Chrome 里**所有网站**的 cookie,不只是目标站点；为了抓字幕不应索取这类宽权限。
+**cookie 的最小保护，每次都遵守：**
 
-**需要登录态时,一律用 Firefox 的专用 profile `ytdlp`**(cookies 是明文 `cookies.sqlite`,不碰钥匙串、不弹窗),**并写 profile 目录的完整路径**:
+- 不打印 cookie 内容，不 `cat cookies.txt`，不贴进报告、对话或笔记；报告里只说“已挂 `ytdlp` 配置的 cookie”。
+- 不把 cookie 复制进任务目录或输出目录；单独的 cookie 文件放在用户指定的私有位置并设为 `chmod 600`。
+- 只为当前抓取取所需站点的 cookie，不顺手导出别的站点。
+- 抓取失败时不把“挂更多 cookie、换浏览器配置、导出全量 cookie”当默认下一步：先按平台表排查，确实需要登录态再按上面的流程走，并告诉用户为什么需要。
 
-```bash
-yt-dlp --cookies-from-browser "firefox:$FIREFOX_YTDLP_PROFILE" "<URL>"
-```
+## 飞书妙记
 
-`$FIREFOX_YTDLP_PROFILE` 取自 `.local/paths.md`。缺失时读 `~/Library/Application Support/Firefox/profiles.ini`,把 `Name=ytdlp` 那节的 `Path=` 拼在 `~/Library/Application Support/Firefox/` 后面,确认目录存在后记进 `.local/paths.md`。另外两种写法不可靠(yt-dlp 2026.06.09 源码,2026-09-28 本机实测):
+准备脚本以用户身份调用 lark-cli 读取妙记信息和逐字稿（`minute_token` 是妙记链接 `/minutes/` 后那一段）。逐字稿按“Speaker N 时:分:秒”分段，说话人只有编号，真名由查询代理从内容里认；飞书 AI 生成的关键词、章节、总结只作导航参考，不当原文照抄。读不到时按顺序：请妙记所有者开权限 → 请用户导出文字记录或音视频，走本地文件 → 兜底搜索。
 
-- `firefox:ytdlp`:yt-dlp 把名字当目录名,去找 `Profiles/ytdlp`;而 Firefox 建的目录带随机前缀(形如 `xxxxxxxx.ytdlp`),找不到 cookie 库,直接报 `could not find firefox cookies database`。
-- 只写 `firefox`:yt-dlp 取所有 profile 里**最近修改**的那个 cookie 库。只有一个 profile 时碰巧对,多了日常 profile 就会读错。
+不要用 Firefox cookie 去调飞书网页的内部接口：没有现成工具，飞书一改版就坏；飞书 cookie 等于整个飞书账号（消息、文档、审批都在里面），泄露代价远大于视频站。都走不通时，先向用户说明风险并取得同意再讨论。
 
-Safari 需开完全磁盘访问且格式脆弱,Arc/Dia 已知失效,同样不用。
+## 视频号
 
-**先判断是否真的需要登录。** 先尝试匿名列字幕或下载音频；只有平台明确要求登录时才使用最小范围的登录态。英文原声的机器翻译字幕可能产生密集专名错误，应优先原文字幕或本地转写。
-
-```bash
-# ① 一次性建专用 profile(命名 ytdlp),在弹出的窗口里登录 B站/YouTube/X 等,然后 Cmd-Q 退出;
-#    建好后按上文把它的目录完整路径记进 .local/paths.md
-/Applications/Firefox.app/Contents/MacOS/firefox --no-remote -P ytdlp
-
-# ② 之后所有抓取都带上它(用时保持该 Firefox 窗口关闭)
-yt-dlp --cookies-from-browser "firefox:$FIREFOX_YTDLP_PROFILE" "<URL>"
-```
-
-- **关键纪律**:这个 profile 登录后**别再用它日常上网**。YouTube 会在你打开 YouTube 标签页时轮换 cookie,导致给 yt-dlp 的那份失效;闲置不动的会话最稳。
-- **`ytdlp` 不要当默认 profile**:直接打开 Firefox 用的是默认 profile,`ytdlp` 是默认的话,用户偶尔开 Firefox 上网也会用到它,cookie 随之轮换。是不是默认,以 `about:profiles` 里的“默认配置文件:是/否”为准;在 `profiles.ini` 里要看 `[Install…]` 那节的 `Default=` 指向谁,`[Profile…]` 节里的 `Default=1` 是旧式标记,不作数(2026-09-28 实测:把日常 profile 设为默认后,`ytdlp` 那节仍留着 `Default=1`)。是默认的话,请用户在 `about:profiles` 新建一个日常 profile,点“设为默认配置文件”,再按 Cmd+Q 退出、重新打开 Firefox。
-- **YouTube 用小号**:yt-dlp 官方文档提醒,用账号抓 YouTube 可能被临时或永久封号,建议用不要紧的小号。`ytdlp` 里的 YouTube 登录小号即可。
-- **headless/定时任务**:在该 profile 里登录后,用浏览器扩展「Get cookies.txt LOCALLY」(Chrome)/「cookies.txt」(Firefox)**只导出一次**成 `cookies.txt`(macOS 用 LF 换行,首行须是 `# Netscape HTTP Cookie File`),然后 `yt-dlp --cookies ~/yt-dlp/cookies.txt "<URL>"`。
-- 诚实边界:「登录一次」现实里是**数周级**,不是永久——平台仍可能服务端失效会话,届时重登/重导一次即可。失效征兆:抓取突然要登录、JSON 解析失败。
-
-### 🔒 cookie 的最小保护(每次都遵守)
-
-cookie 等价于用户在那个站点的登录态,拿到就能冒充他。所以:
-
-- **绝不打印 cookie 内容**——不 `cat cookies.txt`、不把它贴进报告或对话、不写进笔记正文。报告里只说「已挂 `ytdlp` profile 的 cookies」这种事实,不带值。
-- **绝不把 cookies 复制进 `$JOB_DIR` 或 `$OUTPUT_DIR`**。cookie 不应进入任务产物、同步目录或仓库；若使用单独文件，保存在用户指定的私有位置并设为 `chmod 600`。
-- **只为当前这次抓取取所需站点的 cookie**,不顺手导出别的站点;`--cookies-from-browser chrome` 的禁令(上面那条)本质也是这个理由。
-- 抓取失败时**不要**把「挂上更多 cookie / 换个浏览器profile / 导出全量 cookies」当作默认下一步——先按各平台策略排查,确实需要登录态再按上面的流程走,并告诉用户为什么需要。
-
-## 完整性校验(强制,任何来源的文本都要过)
-
-1. 获取内容时长(`yt-dlp --print duration "<URL>"`,或页面信息,或问用户)
-2. 估算期望字数:中文 200–280 字/分钟;英文 130–170 词/分钟
-3. 候选文本 < 期望下限的 60% → 判定为摘要/节选,**拒绝采用**,继续找
-4. 无法获取时长时:向用户报告候选文本字数和来源,请用户判断
-5. 校验通过后,把规模写进「背景信息」(如「52 分钟 · 正文约 1.2 万字」);抓取途径只在文末「补充细节」的整理说明里用一句话交代
-
-## 元信息采集(供「背景信息 / 补充细节」)
-
-抓取时顺手收集,写入文字稿首尾(格式见 `optimize.md`):
-
-```bash
-# 标题、上传者、发布日期、时长、点赞/评论等
-yt-dlp --print "%(title)s | %(uploader)s | %(upload_date>%Y-%m-%d)s | %(duration)ss | 赞%(like_count)s 评%(comment_count)s" "<URL>"
-# 或导出完整元信息 JSON 供挑选
-yt-dlp --skip-download --write-info-json -o "$JOB_DIR/meta.%(ext)s" "<URL>"
-```
-
-- **背景信息(开头)**:发布时间、来源/作者、时长字数,格式见 `optimize.md`;抓取途径放文末整理说明。讨论背景若内容里说清了可一句话概括,**说不清就不要编**。
-- **补充细节(结尾)**:互动数据(点赞/转发/评论/收藏)、视觉元素(封面、关键插图、画面里的图表)。互动数据直接来自上面的 `like_count` 等字段;数字拿不准标〔?〕。
+链接无法直接下载：流是加密的、绑定微信客户端会话的短时签名地址，yt-dlp 不支持。现实路径二选一：用抓取工具 `ltaoo/wx_channels_download`（要装根证书和系统代理，先征得用户同意），或请用户手动录制、导出文件后给路径。不要在抓取上反复尝试；视频号内容常同步到公众号或 B站，可先兜底搜索。
