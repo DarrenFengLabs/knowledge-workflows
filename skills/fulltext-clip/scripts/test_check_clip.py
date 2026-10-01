@@ -48,8 +48,14 @@ class CheckClip(unittest.TestCase):
         self.assertIn("U1", codes(doc("1号讲话人：你好。\n\n讲话人 2：你好。")))
 
     def test_bold_names(self):
-        self.assertIn("P1", codes(doc("**哈希：** 这一期聊拖延。")))
-        self.assertIn("P1", codes(doc("**哈希**：这一期聊拖延。")))
+        self.assertIn("P1", codes(doc("**哈希：** 这一期聊拖延。"), speaker_names=["哈希"]))
+        self.assertIn("P1", codes(doc("**主持人**：这一期聊拖延。")))
+
+    def test_bold_concept_labels_are_fine(self):
+        body = "**已知的已知**：写在提示词里的内容。\n\n**已知的未知**：知道自己还没想清楚的部分。"
+        self.assertNotIn("P1", codes(doc(body)))
+        self.assertIn("P1", codes(doc("**章鱼**：我先说。"), speaker_names=["章鱼"]))
+        self.assertIn("P1", codes(doc("**甲：** 一。\n\n**乙：** 二。\n\n**甲：** 三。\n\n**甲：** 四。")))
 
     def test_mic_in_single_speaker(self):
         self.assertIn("P2", codes(doc("🎙️ 大家好。"), content_type="单人"))

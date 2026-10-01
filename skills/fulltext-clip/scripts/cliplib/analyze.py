@@ -75,7 +75,8 @@ def compute_stats(items: list[dict], kind: str, lang: str, labels: dict) -> dict
             lab = x.get("label")
             if not lab or lab == "换人":
                 continue
-            d = per.setdefault(lab, {"raw": labels.get(lab, lab), "segments": 0, "chars": 0, "first_lines": []})
+            d = per.setdefault(lab, {"raw": labels.get(lab, lab), "segments": 0, "chars": 0, "first_seg": x.get("id"),
+                                     "first_lines": []})
             d["segments"] += 1
             d["chars"] += len(x["text"])
             if len(d["first_lines"]) < 3:
@@ -144,8 +145,10 @@ def plan_chunks(items: list[dict], target: int, chapters: list[dict] | None = No
             score += 1.5
         if b["text"].startswith("#"):
             score += 3
-        if re.search(r"[。！？!?.]$", a["text"]):
-            score += 0.5
+        if re.search(r"[。！？!?.…”」）)]$", a["text"].strip()):
+            score += 1.5
+        else:
+            score -= 1.5  # 切在句中，拼接时会断句
         return score
 
     n = len(items)

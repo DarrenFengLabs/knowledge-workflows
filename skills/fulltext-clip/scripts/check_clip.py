@@ -34,6 +34,7 @@ TIMECODE = re.compile(r"(?<![\d:])\d{1,2}:\d{2}:\d{2}(?![\d:])")
 BOLD_NAME = re.compile(r"^(?:\*\*[^*\n]{1,24}[：:]\*\*|\*\*[^*\n]{1,24}\*\*[：:])")
 LABEL_START = re.compile(r"^(?:🎙️\s*)?([^\s：:*<>|#\-]{1,12})：")
 NUMBERED = re.compile(r"^说话人\d+：")
+ROLE_WORD = re.compile(r"主持人?|主播|嘉宾|观众[A-Z]?|提问|说话人\d*|讲话人\s?\d*|Speaker\s?\d*|Interviewer|Host|Guest")
 
 # ---------- 强调标记（与 notes-with-media/scripts/check_format.py 同源） ----------
 
@@ -237,11 +238,25 @@ def check(text: str, ctx: dict) -> dict:
             add("违规", "U9", f"第 {c['chunk']} 块只有原文的 {c['ratio']:.0%}，可能被压缩")
         elif c["ratio"] > 1.02 and mode == "精修":
             add("提醒", "U9", f"第 {c['chunk']} 块比原文还长（{c['ratio']:.0%}），看是否混入了原文或重复")
+    for k in ctx.get("seams", []):
+        add("提醒", "U11", f"第 {k} 块在句中结束，读一下它与下一块的接缝，把断开的句子接好")
     if ctx.get("source_segments") and abs(len(body_paras) - ctx["source_segments"]) <= 2 and metrics.get("ratio", 0) > 0.95:
         add("提醒", "U10", "段落与原稿几乎一一对应、字数几乎没变：像是机械转换，不像整理过")
 
     # 标错人
-    bold_names = [(no, p.split("\n")[0]) for no, p in body_paras if BOLD_NAME.match(p)]
+    names_known = set(ctx.get("speaker_names") or [])
+    bold_labels = []
+    for no, p in body_paras:
+        m = BOLD_NAME.match(p)
+        if m:
+            label = re.sub(r"[*：:\s]", "", m.group(0))
+            bold_labels.append((no, label, p.split("\n")[0]))
+    counts = {}
+    for _, label, _ in bold_labels:
+        counts[label] = counts.get(label, 0) + 1
+    # 加粗的概念标签（“已知的已知：”）不算；像说话人的才算：已知人名、角色词、编号，或同一标签在段首反复出现
+    bold_names = [(no, first) for no, label, first in bold_labels
+                  if label in names_known or ROLE_WORD.fullmatch(label) or counts[label] >= 3]
     if bold_names:
         add("违规", "P1", f"人名加粗 {len(bold_names)} 处（人名一律不加粗）", bold_names[0][0], bold_names[0][1])
     ctype = ctx.get("content_type")
@@ -251,7 +266,6 @@ def check(text: str, ctx: dict) -> dict:
     both = [(no, p) for no, p in body_paras if re.match(r"^🎙️\s*[^\s：]{1,12}：", p)]
     if both:
         add("违规", "P3", "同一段既有 🎙️ 又有名字", both[0][0], both[0][1])
-    names_known = set(ctx.get("speaker_names") or [])
     labeled = [(no, p) for no, p in body_paras
                if NUMBERED.match(p) or (LABEL_START.match(p) and LABEL_START.match(p).group(1) in names_known)]
     if ctx.get("has_labels") is False and ctx.get("speaker_mode") != "requested" and labeled:
@@ -304,6 +318,13 @@ def job_context(job_dir: Path) -> dict:
            "source_chars": stats.get("chars"), "source_filler": stats.get("filler_per_1k"),
            "source_segments": stats.get("segments"), "chunk_ratios": []}
     tasks = read_json(job_dir / "tasks.json", []) or []
+    ctx["seams"] = []
+    for t in tasks[:-1]:
+        out = job_dir / t["output"]
+        if out.exists():
+            tail = re.sub(r"</?u>|</?small>", "", out.read_text(encoding="utf-8").strip())
+            if tail and not re.search(r"[。！？!?.…”」）)\]]$", tail):
+                ctx["seams"].append(t["chunk"])
     for t in tasks:
         out = job_dir / t["output"]
         src = job_dir / t["input"]
