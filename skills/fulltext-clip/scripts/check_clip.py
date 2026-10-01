@@ -296,7 +296,7 @@ def check(text: str, ctx: dict) -> dict:
             add("违规", "F2", "下划线标签不成对", no, p)
         if p.count("<small>") != p.count("</small>"):
             add("违规", "F2", "小字标签不成对", no, p)
-        m = re.fullmatch(r"(?:🎙️\s*)?(?:[^：\n]{1,12}：)?<u>(.+)</u>[。！？]?", p.strip(), re.S)
+        m = re.fullmatch(r"(?:🎙️\s*)?(?:[^：\n]{1,12}：)?<u>((?:(?!</?u>).)+)</u>[。！？]?", p.strip(), re.S)
         if m and len(m.group(1)) > 60:
             add("提醒", "F3", "整段画了下划线，只画关键句", no, p)
     n_u = body_text.count("<u>")

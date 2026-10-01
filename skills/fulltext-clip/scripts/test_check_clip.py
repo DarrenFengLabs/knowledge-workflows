@@ -68,6 +68,12 @@ class CheckClip(unittest.TestCase):
         self.assertEqual(len(loose), 1)
         self.assertIn("1 段", loose[0]["message"])
 
+    def test_whole_paragraph_underline(self):
+        long = "这是一句很长的关键结论" * 8
+        items = lambda t: {x["code"] for x in check(doc(t), {})["items"]}
+        self.assertIn("F3", items(f"<u>{long}</u>。"))
+        self.assertNotIn("F3", items(f"<u>{long}</u>中间是普通文字，没有画线。<u>{long}</u>"))
+
     def test_mic_in_single_speaker(self):
         self.assertIn("P2", codes(doc("🎙️ 大家好。"), content_type="单人"))
 
