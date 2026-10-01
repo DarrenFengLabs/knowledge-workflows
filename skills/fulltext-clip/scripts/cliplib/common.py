@@ -112,7 +112,8 @@ def http_get(url: str, timeout: int = 30, headers: dict | None = None) -> tuple[
 
 def run(cmd: list[str], timeout: int | None = None, cwd: Path | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout, cwd=str(cwd) if cwd else None
+        cmd, capture_output=True, text=True, timeout=timeout, cwd=str(cwd) if cwd else None,
+        stdin=subprocess.DEVNULL,  # 外部命令（ffmpeg 等）不许读标准输入，否则会吃掉调用方循环里的输入
     )
 
 

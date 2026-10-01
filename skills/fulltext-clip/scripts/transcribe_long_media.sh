@@ -147,7 +147,7 @@ write_status() {
 
 if ! compgen -G "$chunks_dir/chunk_*.wav" >/dev/null; then
   write_status "extracting"
-  if ! ffmpeg -hide_banner -loglevel error -y \
+  if ! ffmpeg -nostdin -hide_banner -loglevel error -y \
     -i "$input_path" -map 0:a:0 -ar 16000 -ac 1 -c:a pcm_s16le \
     -f segment -segment_time "$segment_seconds" -reset_timestamps 1 \
     "$chunks_dir/chunk_%03d.wav"; then
