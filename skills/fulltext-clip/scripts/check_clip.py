@@ -34,6 +34,7 @@ TIMECODE = re.compile(r"(?<![\d:])\d{1,2}:\d{2}:\d{2}(?![\d:])")
 BOLD_NAME = re.compile(r"^(?:\*\*[^*\n]{1,24}[：:]\*\*|\*\*[^*\n]{1,24}\*\*[：:])")
 LABEL_START = re.compile(r"^(?:🎙️\s*)?([^\s：:*<>|#\-]{1,12})：")
 NUMBERED = re.compile(r"^说话人\d+：")
+HOST_CUE = re.compile(r"欢迎|有请|介绍|今天的嘉宾|本期|下一个|接下来|我们来|我们聊|聊聊|说说|讲讲|谢谢|感谢|回到|最后|开始")
 ROLE_WORD = re.compile(r"主持人?|主播|嘉宾|观众[A-Z]?|提问|说话人\d*|讲话人\s?\d*|Speaker\s?\d*|Interviewer|Host|Guest")
 
 # ---------- 强调标记（与 notes-with-media/scripts/check_format.py 同源） ----------
@@ -219,10 +220,16 @@ def check(text: str, ctx: dict) -> dict:
         runs = re.findall(r"[\u4e00-\u9fff][^。！？；，、.!?;,\n]{150,}", zh_plain)
         if runs:
             add("提醒", "U6", f"有 {len(runs)} 处 150 字以上没有标点", None, runs[0][:30])
-    src_chars = ctx.get("source_chars")
+    # 字数比例：中文按汉字算（补进去的标点不算字），其他按非空白字符算
+    src_chars, src_cjk = ctx.get("source_chars"), ctx.get("source_cjk")
     mode = ctx.get("mode")
-    if src_chars and not bilingual:
-        ratio = body_chars / src_chars
+    ratio = None
+    if not bilingual:
+        if src_cjk and zh_cjk:
+            ratio = zh_cjk / src_cjk
+        elif src_chars:
+            ratio = body_chars / src_chars
+    if ratio is not None:
         metrics["ratio"] = round(ratio, 3)
         if mode == "整理":
             if ratio < 0.95:
@@ -263,11 +270,19 @@ def check(text: str, ctx: dict) -> dict:
     mic = [(no, p) for no, p in body_paras if "🎙️" in p]
     if ctype in {"单人", "文章"} and mic:
         add("违规", "P2", f"单人内容不应出现 🎙️（{len(mic)} 处）", mic[0][0], mic[0][1])
-    both = [(no, p) for no, p in body_paras if re.match(r"^🎙️\s*[^\s：]{1,12}：", p)]
+    def mic_with_name(p):
+        m = re.match(r"^🎙️\s*([^\s：]{1,12})：", p)
+        return bool(m) and (m.group(1) in names_known or ROLE_WORD.fullmatch(m.group(1)) is not None)
+
+    both = [(no, p) for no, p in body_paras if mic_with_name(p)]
     if both:
         add("违规", "P3", "同一段既有 🎙️ 又有名字", both[0][0], both[0][1])
     labeled = [(no, p) for no, p in body_paras
                if NUMBERED.match(p) or (LABEL_START.match(p) and LABEL_START.match(p).group(1) in names_known)]
+    if ctx.get("has_labels") is False and ctx.get("speaker_mode") == "host_only":
+        loose = [(no, p) for no, p in mic if "？" not in p and "?" not in p and not HOST_CUE.search(p)]
+        if loose:
+            add("提醒", "P6", f"有 {len(loose)} 段 🎙️ 既不是问句也不像串场，复核是否真是主持人的话，拿不准就去掉 🎙️", loose[0][0], loose[0][1])
     if ctx.get("has_labels") is False and ctx.get("speaker_mode") != "requested" and labeled:
         add("违规", "P4", f"原稿没有说话人标签，正文却标了 {len(labeled)} 处说话人（只允许给能确定的主持人提问加 🎙️）", labeled[0][0], labeled[0][1])
     if ctype in {"单人", "文章"} and labeled:
@@ -291,7 +306,7 @@ def check(text: str, ctx: dict) -> dict:
         metrics["underline_per_1k"] = round(per_k, 2)
         if per_k < 1.0:
             add("提醒", "F4", f"下划线偏少：每千字 {per_k:.1f} 处（目标约每 400–600 字一处）")
-        elif per_k > 4:
+        elif per_k > 6:
             add("提醒", "F4", f"下划线过密：每千字 {per_k:.1f} 处")
     if bilingual:
         prose = [(no, p) for no, p in body_paras if not p.startswith("#")]
@@ -315,7 +330,8 @@ def job_context(job_dir: Path) -> dict:
     ctx = {"job": True, "mode": sheet.get("mode"), "content_type": sheet.get("content_type"),
            "speaker_mode": sheet.get("speaker_mode"), "has_labels": stats.get("has_labels"),
            "speaker_names": [s.get("name") for s in sheet.get("speakers", []) if s.get("name")],
-           "source_chars": stats.get("chars"), "source_filler": stats.get("filler_per_1k"),
+           "source_chars": stats.get("chars"), "source_cjk": stats.get("cjk") if stats.get("lang") == "zh" else None,
+           "source_filler": stats.get("filler_per_1k"),
            "source_segments": stats.get("segments"), "chunk_ratios": []}
     tasks = read_json(job_dir / "tasks.json", []) or []
     ctx["seams"] = []
@@ -329,10 +345,15 @@ def job_context(job_dir: Path) -> dict:
         out = job_dir / t["output"]
         src = job_dir / t["input"]
         if out.exists() and src.exists() and t["kind"] != "翻译-整理":
-            s_chars = sum(len(x["text"]) for x in read_segments(src))
-            o_chars = len(re.sub(r"\s", "", strip_markup(re.sub(r"<small>.*?</small>", "", out.read_text(encoding="utf-8"), flags=re.S))))
-            if t["kind"] == "精修" and s_chars:
-                ctx["chunk_ratios"].append({"chunk": t["chunk"], "ratio": round(o_chars / s_chars, 3)})
+            s_text = "".join(x["text"] for x in read_segments(src))
+            o_text = strip_markup(re.sub(r"<small>.*?</small>", "", out.read_text(encoding="utf-8"), flags=re.S))
+            s_cjk, o_cjk = count_cjk(s_text), count_cjk(o_text)
+            if s_cjk > len(s_text) * 0.5:
+                s_n, o_n = s_cjk, o_cjk
+            else:
+                s_n, o_n = len(re.sub(r"\s", "", s_text)), len(re.sub(r"\s", "", o_text))
+            if t["kind"] == "精修" and s_n:
+                ctx["chunk_ratios"].append({"chunk": t["chunk"], "ratio": round(o_n / s_n, 3)})
     return ctx
 
 
@@ -367,6 +388,7 @@ def main() -> int:
             segs = read_segments(src)
             raw = "\n".join(s["text"] for s in segs) if segs else src.read_text(encoding="utf-8", errors="ignore")
             ctx["source_chars"] = len(re.sub(r"\s", "", raw))
+            ctx["source_cjk"] = count_cjk(raw) or None
             ctx["source_filler"] = filler_rate(raw)
     else:
         ap.error("给出成品文件或 --job-dir")

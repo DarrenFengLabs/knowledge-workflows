@@ -63,7 +63,7 @@ ln -s "/absolute/path/knowledge-workflows/skills/fulltext-clip" \
 | 上下文较小 | 长转写与长文按 skill 里的规则分批读取、边做边写盘 |
 | 模型知识有截止日期 | `model-table` 的价格、参数、日期一律来自可复核来源，不用模型记忆 |
 | 模型可调推理强度 | 先用默认；`reading-triage` 的定级与综合、`model-table` 的核实出现遗漏时再调高 |
-| 想换便宜的模型 | 剪藏里认人、查证这类输出少、错了影响全篇的步骤留在强档；按工作单整理语言和翻译的步骤可以降一档，但先用 `.local/samples.md` 的样例对比，确认质量不降再换（在宿主的角色定义里改） |
+| 想省时间和额度 | 先降推理强度，不先换模型：实测写作环节用中等推理强度，用量约少六成、快约五倍，准确度不降；换便宜一档的模型则无依据改动明显增多。写作角色已按此配置；改动前先用 `.local/samples.md` 的样例对比 |
 
 换用新的模型或智能体后，用一份真实样例回归一次：`fulltext-clip` 用 `scripts/check_clip.py` 检查成品；`notes-with-media` 可用 `scripts/check_format.py` 对比前后的违规数与斜体、金句、表格数。
 

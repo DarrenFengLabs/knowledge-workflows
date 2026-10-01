@@ -57,6 +57,17 @@ class CheckClip(unittest.TestCase):
         self.assertIn("P1", codes(doc("**章鱼**：我先说。"), speaker_names=["章鱼"]))
         self.assertIn("P1", codes(doc("**甲：** 一。\n\n**乙：** 二。\n\n**甲：** 三。\n\n**甲：** 四。")))
 
+    def test_mic_with_name(self):
+        self.assertIn("P3", codes(doc("🎙️ 主持人：你怎么看？")))
+        self.assertNotIn("P3", codes(doc("🎙️ 快问一句：你怎么看？")))
+
+    def test_loose_mic_marks(self):
+        ctx = dict(has_labels=False, speaker_mode="host_only")
+        res = check(doc("🎙️ 其实固执己见的人往往是在小时候缺少这样的练习。\n\n🎙️ 你怎么看？\n\n🎙️ 欢迎来到节目。"), ctx)
+        loose = [x for x in res["items"] if x["code"] == "P6"]
+        self.assertEqual(len(loose), 1)
+        self.assertIn("1 段", loose[0]["message"])
+
     def test_mic_in_single_speaker(self):
         self.assertIn("P2", codes(doc("🎙️ 大家好。"), content_type="单人"))
 
