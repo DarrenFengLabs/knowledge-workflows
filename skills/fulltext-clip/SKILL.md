@@ -34,7 +34,7 @@ description: 将外部文章、视频、播客、本地音视频、文档、截�
 |---|---|---|---|
 | 准备 | 脚本 `prep.py init` | 按平台获取元信息、文字和章节，必要时本机转写；统一格式、统计、建议档位、切块、查重 | [fetch.md](references/fetch.md)、[transcribe.md](references/transcribe.md) |
 | 查询 | 模型（强档） | 写工作单：内容类型、说话人名单、专名写法、缺失的元信息。联网查询集中在这一步 | [survey.md](references/survey.md) |
-| 写作 | 模型（中档），每块一个 | 按工作单把一块原文整理成正文，外加一张小笔记 | [write.md](references/write.md) |
+| 写作 | 模型（中档）；3 万字以内与查询、收尾由同一个代理做完，长稿每 2–3 块一个代理 | 按工作单把一块原文整理成正文，外加一张小笔记 | [write.md](references/write.md) |
 | 收尾 | 模型（中档） | 写大纲、术语速查、补充细节；拼装、检查、定点修正 | [finish.md](references/finish.md) |
 | 发布 | 脚本 `assemble.py` | 生成背景信息表、拼装、命名、防重名、写入并回读 | [storage.md](references/storage.md) |
 
