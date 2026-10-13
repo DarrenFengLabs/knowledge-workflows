@@ -193,6 +193,51 @@ class EndToEnd(unittest.TestCase):
         self.assertIn("<small>Hello world.</small>\n\n你好，世界。", final)
         self.assertIn("<small>Second one.</small>\n\n🎙️ 第二段。", final)
 
+    def test_translation_chinese_only(self):
+        job = self.tmp / "job4"
+        (job / "chunks").mkdir(parents=True)
+        (job / "out").mkdir()
+        (job / "chunks" / "001.md").write_text("〔块说明〕x\n\n〔p1〕Hello world.\n\n〔p2〕Second one.\n", encoding="utf-8")
+        (job / "out" / "001.zh.md").write_text("### 开场〔p1〕\n\n〔p1〕你好，世界。\n\n〔p2〕第二段。\n", encoding="utf-8")
+        (job / "tasks.json").write_text(json.dumps([{"chunk": "001", "input": "chunks/001.md", "output": "out/001.zh.md",
+                                                     "notes": "notes/001.json", "kind": "翻译-整理", "bilingual": False}]),
+                                        encoding="utf-8")
+        (job / "meta.json").write_text("{}", encoding="utf-8")
+        (job / "sheet.json").write_text(json.dumps({"title": "T", "mode": "翻译"}), encoding="utf-8")
+        r = run(HERE / "assemble.py", "build", "--job-dir", job)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        final = (job / "final.md").read_text(encoding="utf-8")
+        self.assertIn("### 开场\n\n你好，世界。\n\n第二段。", final)
+        self.assertNotIn("<small>", final)
+        self.assertNotIn("〔p", final)
+
+    def test_heading_timestamps_and_digest(self):
+        job = self.tmp / "job5"
+        (job / "chunks").mkdir(parents=True)
+        (job / "out").mkdir()
+        src = "〔s1 00:00:05〕Hi there.\n\n〔s2 01:02:03〕Later part.\n"
+        (job / "source.md").write_text(src, encoding="utf-8")
+        (job / "chunks" / "001.md").write_text("〔块说明〕x\n\n〔s1 00:00:05〕Hi there.\n", encoding="utf-8")
+        (job / "chunks" / "002.md").write_text("〔块说明〕y\n\n〔s2 01:02:03〕Later part.\n", encoding="utf-8")
+        (job / "out" / "001.md").write_text("### 开场〔s1〕\n\n大家好，我们开始〔?〕", encoding="utf-8")
+        (job / "out" / "002.md").write_text("### 后半段〔s2〕\n\n后面的内容。\n", encoding="utf-8")
+        tasks = [{"chunk": k, "input": f"chunks/{k}.md", "output": f"out/{k}.md", "notes": f"notes/{k}.json",
+                  "kind": "翻译-精修", "bilingual": False} for k in ("001", "002")]
+        (job / "tasks.json").write_text(json.dumps(tasks), encoding="utf-8")
+        (job / "meta.json").write_text(json.dumps({"platform": "youtube", "url": "https://www.youtube.com/watch?v=abc"}),
+                                       encoding="utf-8")
+        (job / "sheet.json").write_text(json.dumps({"title": "T", "mode": "翻译", "content_type": "单人"}), encoding="utf-8")
+        r = run(HERE / "assemble.py", "build", "--job-dir", job)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        final = (job / "final.md").read_text(encoding="utf-8")
+        self.assertIn("### 开场 · [0:05](https://www.youtube.com/watch?v=abc&t=5s)\n\n大家好", final)
+        self.assertIn("### 后半段 · [1:02:03](https://www.youtube.com/watch?v=abc&t=3723s)", final)
+        d = run(HERE / "assemble.py", "digest", "--job-dir", job)
+        self.assertEqual(d.returncode, 0, d.stderr)
+        self.assertIn("001：开场", d.stdout)
+        self.assertIn("〔?〕共 1 处", d.stdout)
+        self.assertIn("断在句中的接缝", d.stdout)
+
 
 class Stats(unittest.TestCase):
     def test_lower_latin_and_mode(self):

@@ -2,6 +2,7 @@
 name: clip-finish
 description: fulltext-clip 的收尾代理：写大纲、术语速查、补充细节，拼装、检查、定点修正并发布成品。主对话按 dispatch.md 派发。
 model: inherit
+disallowedTools: Agent, Artifact, AskUserQuestion, ReportFindings, ScheduleWakeup, Skill, NotebookEdit, ListAgents, mcp__claude_ai_Claude_Docs__batch, mcp__claude_ai_Claude_Docs__guide, mcp__claude_ai_Claude_Docs__update
 ---
 
 你是 fulltext-clip 的收尾代理。任务消息会给出任务目录和 skill 根目录。

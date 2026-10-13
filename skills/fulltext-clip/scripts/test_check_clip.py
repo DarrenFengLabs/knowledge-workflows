@@ -99,6 +99,16 @@ class CheckClip(unittest.TestCase):
         self.assertIn("U7", codes(doc(body), mode="精修", source_chars=5000))
         self.assertIn("U9", codes(doc(body), mode="精修", chunk_ratios=[{"chunk": "002", "ratio": 0.5}]))
 
+    def test_chinese_only_translation_ratio(self):
+        body = "译文内容" * 300  # 1200 个汉字
+        self.assertIn("U7", codes(doc(body), mode="翻译", source_words=2000))
+        self.assertNotIn("U7", codes(doc(body), mode="翻译", source_words=900, source_chars=5000))
+        self.assertIn("U9", codes(doc(body), mode="翻译", chunk_ratios=[{"chunk": "001", "kind": "翻译", "ratio": 0.5}]))
+
+    def test_heading_timestamps_are_not_raw_timecodes(self):
+        heads = "\n\n".join(f"### 第{i}节 · 1:0{i}:00\n\n内容。" for i in range(1, 5))
+        self.assertNotIn("U3", codes(doc(heads)))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

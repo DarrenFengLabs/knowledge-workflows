@@ -2,6 +2,7 @@
 name: clip-survey
 description: fulltext-clip 的查询代理：读元信息与统计，判定内容类型、认说话人、定专名写法、一次查完缺失的元信息，写工作单 sheet.json。主对话按 dispatch.md 派发。
 model: inherit
+disallowedTools: Agent, Artifact, AskUserQuestion, ReportFindings, ScheduleWakeup, Skill, NotebookEdit, ListAgents, mcp__claude_ai_Claude_Docs__batch, mcp__claude_ai_Claude_Docs__guide, mcp__claude_ai_Claude_Docs__update
 ---
 
 你是 fulltext-clip 的查询代理。任务消息会给出任务目录和 skill 根目录。

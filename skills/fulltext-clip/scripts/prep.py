@@ -261,9 +261,11 @@ def cmd_apply_sheet(args) -> int:
         for f in chunk_files:
             k = f.stem
             kind = "翻译-整理" if en_clean else ("翻译-精修" if mode == "翻译" else "精修")
-            tasks.append({"chunk": k, "input": f"chunks/{k}.md",
-                          "output": f"out/{k}.zh.md" if en_clean else f"out/{k}.md",
-                          "notes": f"notes/{k}.json", "kind": kind})
+            task = {"chunk": k, "input": f"chunks/{k}.md", "output": f"out/{k}.zh.md" if en_clean else f"out/{k}.md",
+                    "notes": f"notes/{k}.json", "kind": kind}
+            if mode == "翻译":
+                task["bilingual"] = bool(sheet.get("bilingual"))  # 默认只出中文，用户要求双语才配英文
+            tasks.append(task)
     (job_dir / "notes").mkdir(exist_ok=True)
     write_json(job_dir / "tasks.json", tasks)
     update_status(job_dir, stage="surveyed", mode=mode, content_type=sheet["content_type"],
@@ -309,7 +311,7 @@ def next_step(job_dir: Path, st: dict) -> str:
         return "有重复成品，先问用户" if st.get("code") == "DUPLICATE" else "查询（写 sheet.json）"
     if stage == "surveyed":
         tasks = read_json(job_dir / "tasks.json", [])
-        pending = [t["chunk"] for t in tasks if not (job_dir / t["output"]).exists() or not (job_dir / t["notes"]).exists()]
+        pending = [t["chunk"] for t in tasks if not (job_dir / t["output"]).exists()]  # 一个代理做完时不写笔记
         return f"写作：{', '.join(pending)}" if pending else "收尾"
     if stage == "assembled":
         return "检查与发布"

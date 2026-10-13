@@ -7,7 +7,7 @@
 
 查四类问题：
   没整理   残留平台说话人标签、段落标记、时间码、口头禅、小写英文缩写（识别错误），字数几乎没变
-  删多了   字数比例偏低（全篇和每块分别算）
+  删多了   字数比例偏低（全篇和每块分别算；只出中文的翻译按“汉字数 / 英文词数”算）
   标错人   人名加粗；单人内容出现 🎙️；无标签原稿里出现“名字：”或“说话人N”；同一段既有 🎙️ 又有名字
   格式     结构顺序、背景表必填项、一级标题、双语配对、强调标记、下划线密度；列出全部〔?〕
 “违规”要修，“提醒”要看一眼再决定。有违规时退出码为 1。
@@ -195,7 +195,7 @@ def check(text: str, ctx: dict) -> dict:
     markers = [(no, p) for no, p in body_paras if re.search(r"〔[sp]\d+", p)]
     if markers:
         add("违规", "U2", f"残留段落标记 {len(markers)} 处", markers[0][0], markers[0][1])
-    tcs = [(no, m.group(0)) for no, p in body_paras for m in TIMECODE.finditer(p)]
+    tcs = [(no, m.group(0)) for no, p in body_paras if not p.startswith("#") for m in TIMECODE.finditer(p)]
     if len(tcs) >= 3:
         add("违规", "U3", f"正文残留时间码 {len(tcs)} 处", tcs[0][0], tcs[0][1])
     metrics = {"body_chars": body_chars, "zh_cjk": zh_cjk, "bilingual": bilingual}
@@ -224,7 +224,15 @@ def check(text: str, ctx: dict) -> dict:
     src_chars, src_cjk = ctx.get("source_chars"), ctx.get("source_cjk")
     mode = ctx.get("mode")
     ratio = None
-    if not bilingual:
+    if mode == "翻译" and not bilingual and ctx.get("source_words") and zh_cjk:
+        # 中文汉字数约为英文词数的 1.15–1.87 倍（2026-10 对 18 篇旧双语稿的统计，多数 1.3–1.5）
+        per_word = zh_cjk / ctx["source_words"]
+        metrics["zh_per_en_word"] = round(per_word, 2)
+        if per_word < 0.8:
+            add("违规", "U7", f"译文汉字数只有英文词数的 {per_word:.2f} 倍（通常 1.2–1.6），可能漏译或译成了摘要")
+        elif per_word < 1.0:
+            add("提醒", "U7", f"译文汉字数为英文词数的 {per_word:.2f} 倍，偏低，自查是否漏译")
+    elif not bilingual and mode != "翻译":
         if src_cjk and zh_cjk:
             ratio = zh_cjk / src_cjk
         elif src_chars:
@@ -241,6 +249,10 @@ def check(text: str, ctx: dict) -> dict:
         elif ratio > 0.97 and mode == "精修":
             add("提醒", "U8", f"字数为原稿的 {ratio:.0%}，几乎没变，确认是否真的整理过")
     for c in ctx.get("chunk_ratios", []):
+        if c.get("kind") == "翻译":
+            if c["ratio"] < 0.7:
+                add("违规", "U9", f"第 {c['chunk']} 块译文汉字数只有英文词数的 {c['ratio']:.2f} 倍，可能漏译")
+            continue
         if c["ratio"] < 0.65:
             add("违规", "U9", f"第 {c['chunk']} 块只有原文的 {c['ratio']:.0%}，可能被压缩")
         elif c["ratio"] > 1.02 and mode == "精修":
@@ -332,6 +344,7 @@ def job_context(job_dir: Path) -> dict:
            "speaker_names": [s.get("name") for s in sheet.get("speakers", []) if s.get("name")],
            "source_chars": stats.get("chars"), "source_cjk": stats.get("cjk") if stats.get("lang") == "zh" else None,
            "source_filler": stats.get("filler_per_1k"),
+           "source_words": stats.get("words") if stats.get("lang") == "en" else None,
            "source_segments": stats.get("segments"), "chunk_ratios": []}
     tasks = read_json(job_dir / "tasks.json", []) or []
     ctx["seams"] = []
@@ -354,6 +367,10 @@ def job_context(job_dir: Path) -> dict:
                 s_n, o_n = len(re.sub(r"\s", "", s_text)), len(re.sub(r"\s", "", o_text))
             if t["kind"] == "精修" and s_n:
                 ctx["chunk_ratios"].append({"chunk": t["chunk"], "ratio": round(o_n / s_n, 3)})
+            elif t["kind"] == "翻译-精修" and not t.get("bilingual"):
+                words = len(re.findall(r"[A-Za-z]+", s_text))
+                if words:
+                    ctx["chunk_ratios"].append({"chunk": t["chunk"], "kind": "翻译", "ratio": round(o_cjk / words, 3)})
     return ctx
 
 

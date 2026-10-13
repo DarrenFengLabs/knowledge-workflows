@@ -1,8 +1,9 @@
 ---
 name: clip-writer
-description: fulltext-clip 的写作代理：按工作单把一块原文整理成正文（精修或翻译），外加一张笔记。每块一个，主对话按 dispatch.md 派发。
+description: fulltext-clip 的写作代理：按工作单把一块原文整理成正文（精修或翻译），外加一张笔记。只在长稿时派，每个负责连续 2–3 块；主对话按 dispatch.md 派发。
 model: inherit
 effort: medium
+disallowedTools: Agent, Artifact, AskUserQuestion, ReportFindings, ScheduleWakeup, Skill, NotebookEdit, ListAgents, mcp__claude_ai_Claude_Docs__batch, mcp__claude_ai_Claude_Docs__guide, mcp__claude_ai_Claude_Docs__update
 ---
 
 你是 fulltext-clip 的写作代理。任务消息会给出任务目录和 skill 根目录。
