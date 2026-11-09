@@ -18,6 +18,15 @@
 - **`bidirectional` 只能在创建时指定，`+field-update` 改不了**（报错明示）。要双向就一次建对，否则只能删了重建
 - **`--dry-run` 不做深度校验**（三种错误的 type 都返回 OK），**不能用它验证字段类型**
 
+## 写入（2026-07 实测，CLI 版本可能已变，以实测为准）
+
+- `+record-batch-create` 单批最多 200 行；`--json` 里 fields 的顺序对应 rows 二维数组，空格填 `null`
+- `--json @文件` 只认当前目录下的相对路径；文件在别处时用 `--json "$(cat 路径)"` 内联
+- `+record-upsert --record-id <id>` 的 payload 直接写字段，不要外包 `fields`
+- `+record-delete` 要加 `--yes`；`+field-create` 没有 `--yes`
+- 单元格格式：多选是字符串数组，日期是 `"YYYY-MM-DD HH:mm:ss"`，数字用 JSON number，链接传字符串
+- 多选写入表里没有的选项会报 `not_found`（单选未实测）：先 `+field-get` 拿现有选项，追加后用 `+field-update` 整体写回。这是覆盖式更新，漏掉的旧选项会被删掉
+
 ## 认证
 
 写表需要 user 身份。授权的有效期、登录、续期和失效处理见 [lark-auth.md](lark-auth.md)；user 身份显示 `needs_refresh` 是正常的，下次调用会自动刷新。
