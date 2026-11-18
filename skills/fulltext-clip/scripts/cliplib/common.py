@@ -210,6 +210,8 @@ def strip_markup(text: str) -> str:
 def sanitize_filename(name: str, limit: int = 120) -> str:
     name = unicodedata.normalize("NFC", name)
     name = re.sub(r'[/\\:*?"<>|\r\n\t]', " ", name)
+    # Obsidian 双链里 # 指小节、^ 指块、[ ] 是链接语法，文件名带这几个字符就链不上，直接删掉。
+    name = re.sub(r"[#^\[\]]", "", name)
     name = re.sub(r"\s{2,}", " ", name).strip(" .")
     return name[:limit].rstrip(" .") or "未命名"
 
