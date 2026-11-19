@@ -177,6 +177,22 @@ def minutes_text(seconds) -> str | None:
 
 # ---------- 文字 ----------
 
+# 双语成品里的英文原文用灰色字，颜色取飞书的文字灰 #8f959e：Obsidian 里看起来和传进飞书后一样
+# （clip-archive 上传时转成飞书的灰色字）。2026-11-18 起取代 <small> 小字。
+EN_OPEN = '<span style="color:#8f959e">'
+EN_CLOSE = "</span>"
+EN_RE = re.compile(r'<span style="color:#8f959e">(.*?)</span>', re.S)
+
+
+def en_wrap(text: str) -> str:
+    return f"{EN_OPEN}{text}{EN_CLOSE}"
+
+
+def drop_en(text: str) -> str:
+    """去掉双语成品里的英文原文，只剩中文。"""
+    return EN_RE.sub("", text)
+
+
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
 LATIN_WORD = re.compile(r"[A-Za-z]+(?:['’-][A-Za-z]+)*")
 

@@ -8,7 +8,7 @@
 
 build 读 meta.json、sheet.json、header.md（大纲、术语）、out/*（正文）、tail.md（补充细节），
 生成 final.md：背景信息表由脚本按元信息生成，规模里的字数按成品正文实数计算；
-翻译档默认只出中文；用户要双语时，英文干净的块按段落编号把英文原文（小字）与中文译文配对。
+翻译档默认只出中文；用户要双语时，英文干净的块按段落编号把英文原文（灰色字）与中文译文配对。
 小标题行末尾的段号（〔s12〕）换成原片时间点，YouTube、B站做成可点击的跳转链接。
 digest 把收尾要看的东西压成一屏：工作单要点、互动数、各块小标题和笔记、全部〔?〕、断在句中的接缝、读者画像。
 publish 按“发布日期_中文标题.md”命名，同名不覆盖（除非 --overwrite 或 --rename），写入后回读核对。
@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from cliplib.common import (  # noqa: E402
-    BEIJING, count_cjk, minutes_text, parse_hms, parse_marker, read_json, read_segments, sanitize_filename,
+    BEIJING, EN_OPEN, EN_RE, count_cjk, drop_en, en_wrap, minutes_text, parse_hms, parse_marker, read_json, read_segments, sanitize_filename,
     strip_markup, update_status,
 )
 
@@ -45,9 +45,9 @@ def size_text(body: str, bilingual: bool) -> str:
     def zh(n: int) -> str:
         return f"约 {n / 10000:.1f} 万字" if n >= 10000 else f"约 {round(n, -2) or n:,} 字"
     if bilingual:
-        en = " ".join(re.findall(r"<small>(.*?)</small>", body, re.S))
+        en = " ".join(EN_RE.findall(body))
         words = len(re.findall(r"[A-Za-z]+(?:['’-][A-Za-z]+)*", strip_markup(en)))
-        zh_chars = count_cjk(strip_markup(re.sub(r"<small>.*?</small>", "", body, flags=re.S)))
+        zh_chars = count_cjk(strip_markup(drop_en(body)))
         return f"英文约 {round(words, -2) or words:,} 词 · 中文{zh(zh_chars)}"
     plain = re.sub(r"\s", "", strip_markup(body))
     return f"正文{zh(len(plain))}"
@@ -81,7 +81,7 @@ def merge_translation(job: Path, chunk: str, zh_file: Path, bilingual: bool) -> 
         seen.add(seg_id)
         src = en.get(seg_id)
         if bilingual and src is not None:
-            out.append(f"<small>{src['text']}</small>")
+            out.append(en_wrap(src['text']))
         out.append(zh)
     missing = [k for k in en if k not in seen]
     return "\n\n".join(out), missing
@@ -195,7 +195,7 @@ def cmd_digest(args) -> int:
     for (k, f), (k2, f2) in zip(outs, outs[1:]):
         if f.exists() and f2.exists():
             tail = f.read_text(encoding="utf-8").strip()
-            bare = re.sub(r"</?u>|</?small>", "", tail)
+            bare = re.sub(r"</?u>|<span[^>]*>|</span>", "", tail)
             if bare and not re.search(r"[。！？!?.…”」）)\]]$", bare):
                 head = f2.read_text(encoding="utf-8").strip()
                 seams.append(f"{k} 结尾：…{tail[-60:]}\n{k2} 开头：{head[:60]}…".replace("\n\n", " "))
@@ -214,7 +214,7 @@ def cmd_build(args) -> int:
     sheet = read_json(job / "sheet.json", {}) or {}
     body, missing = body_text(job, sheet, meta)
     body = re.sub(r"\n{3,}", "\n\n", body).strip()
-    bilingual = "<small>" in body
+    bilingual = EN_OPEN in body
     parts = [background(meta, sheet, body, bilingual)]
     header = job / "header.md"
     if header.exists() and header.read_text(encoding="utf-8").strip():

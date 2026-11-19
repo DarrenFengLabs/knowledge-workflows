@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from cliplib.analyze import FILLERS_ZH, LOWER_OK, filler_rate  # noqa: E402
-from cliplib.common import count_cjk, read_json, read_segments, strip_markup, update_status, write_json  # noqa: E402
+from cliplib.common import EN_OPEN, count_cjk, drop_en, read_json, read_segments, strip_markup, update_status, write_json  # noqa: E402
 
 META_SECTIONS = ["背景信息", "全文大纲", "术语速查", "正文", "补充细节", "拟入表"]
 BG_REQUIRED = ["原标题", "来源", "发布时间", "规模"]
@@ -180,8 +180,8 @@ def check(text: str, ctx: dict) -> dict:
     body_lines = [x for s in body_secs for x in s["lines"]]
     body_paras = paragraphs(body_lines)
     body_text = "\n\n".join(p for _, p in body_paras)
-    bilingual = "<small>" in body_text
-    zh_text = re.sub(r"<small>.*?</small>", "", body_text, flags=re.S)
+    bilingual = EN_OPEN in body_text
+    zh_text = drop_en(body_text)
     zh_plain = strip_markup(zh_text)
     body_chars = len(re.sub(r"\s", "", strip_markup(body_text)))
     zh_cjk = count_cjk(zh_plain)
@@ -306,8 +306,10 @@ def check(text: str, ctx: dict) -> dict:
     for no, p in body_paras:
         if p.count("<u>") != p.count("</u>"):
             add("违规", "F2", "下划线标签不成对", no, p)
-        if p.count("<small>") != p.count("</small>"):
-            add("违规", "F2", "小字标签不成对", no, p)
+        if p.count(EN_OPEN) != p.count("</span>"):
+            add("违规", "F2", "英文灰色字标签不成对", no, p)
+        if "<small>" in p:
+            add("违规", "F2", "英文原文改用灰色字写法，不用 <small>（见 write.md）", no, p)
         m = re.fullmatch(r"(?:🎙️\s*)?(?:[^：\n]{1,12}：)?<u>((?:(?!</?u>).)+)</u>[。！？]?", p.strip(), re.S)
         if m and len(m.group(1)) > 60:
             add("提醒", "F3", "整段画了下划线，只画关键句", no, p)
@@ -323,9 +325,9 @@ def check(text: str, ctx: dict) -> dict:
     if bilingual:
         prose = [(no, p) for no, p in body_paras if not p.startswith("#")]
         for i, (no, p) in enumerate(prose):
-            if p.startswith("<small>") or p.startswith("> <small>"):
+            if p.startswith(EN_OPEN) or p.startswith("> " + EN_OPEN):
                 nxt = prose[i + 1][1] if i + 1 < len(prose) else ""
-                if not nxt or "<small>" in nxt:
+                if not nxt or EN_OPEN in nxt:
                     add("违规", "F5", "英文段后面缺中文译文", no, p)
     doubts = [(no, l.strip()) for no, l in enumerate(lines, 1) if "〔?〕" in l]
     metrics["doubts"] = len(doubts)
@@ -351,7 +353,7 @@ def job_context(job_dir: Path) -> dict:
     for t in tasks[:-1]:
         out = job_dir / t["output"]
         if out.exists():
-            tail = re.sub(r"</?u>|</?small>", "", out.read_text(encoding="utf-8").strip())
+            tail = re.sub(r"</?u>|<span[^>]*>|</span>", "", out.read_text(encoding="utf-8").strip())
             if tail and not re.search(r"[。！？!?.…”」）)\]]$", tail):
                 ctx["seams"].append(t["chunk"])
     for t in tasks:
@@ -359,7 +361,7 @@ def job_context(job_dir: Path) -> dict:
         src = job_dir / t["input"]
         if out.exists() and src.exists() and t["kind"] != "翻译-整理":
             s_text = "".join(x["text"] for x in read_segments(src))
-            o_text = strip_markup(re.sub(r"<small>.*?</small>", "", out.read_text(encoding="utf-8"), flags=re.S))
+            o_text = strip_markup(drop_en(out.read_text(encoding="utf-8")))
             s_cjk, o_cjk = count_cjk(s_text), count_cjk(o_text)
             if s_cjk > len(s_text) * 0.5:
                 s_n, o_n = s_cjk, o_cjk

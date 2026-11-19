@@ -190,8 +190,8 @@ class EndToEnd(unittest.TestCase):
         r = run(HERE / "assemble.py", "build", "--job-dir", job)
         self.assertEqual(r.returncode, 0, r.stderr)
         final = (job / "final.md").read_text(encoding="utf-8")
-        self.assertIn("<small>Hello world.</small>\n\n你好，世界。", final)
-        self.assertIn("<small>Second one.</small>\n\n🎙️ 第二段。", final)
+        self.assertIn('<span style="color:#8f959e">Hello world.</span>\n\n你好，世界。', final)
+        self.assertIn('<span style="color:#8f959e">Second one.</span>\n\n🎙️ 第二段。', final)
 
     def test_translation_chinese_only(self):
         job = self.tmp / "job4"
@@ -208,7 +208,7 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         final = (job / "final.md").read_text(encoding="utf-8")
         self.assertIn("### 开场\n\n你好，世界。\n\n第二段。", final)
-        self.assertNotIn("<small>", final)
+        self.assertNotIn("color:#8f959e", final)
         self.assertNotIn("〔p", final)
 
     def test_heading_timestamps_and_digest(self):

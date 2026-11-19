@@ -23,6 +23,9 @@ BG = """## 背景信息
 """
 
 
+G = '<span style="color:#8f959e">'  # 双语成品里英文原文的灰色字
+
+
 def doc(body: str, extra: str = "") -> str:
     return BG + "\n## 正文\n\n" + body + "\n\n## 补充细节\n\n- **整理说明**：测试。\n" + extra
 
@@ -87,8 +90,14 @@ class CheckClip(unittest.TestCase):
         self.assertIn("U5", codes(doc(body)))
 
     def test_bilingual_pairing(self):
-        body = "<small>Hello.</small>\n\n你好。\n\n<small>Missing translation.</small>\n\n<small>Another.</small>\n\n另一段。"
+        body = G + "Hello.</span>\n\n你好。\n\n" + G + "Missing translation.</span>\n\n" + G + "Another.</span>\n\n另一段。"
         self.assertIn("F5", codes(doc(body)))
+        ok = G + "Hello.</span>\n\n你好。\n\n" + G + "Another.</span>\n\n另一段。"
+        self.assertNotIn("F5", codes(doc(ok)))
+        self.assertNotIn("F2", codes(doc(ok)))
+
+    def test_old_small_tag_flagged(self):
+        self.assertIn("F2", codes(doc("<small>Hello.</small>\n\n你好。")))
 
     def test_emphasis_and_tags(self):
         self.assertIn("F1", codes(doc("这是**结论。**后文")))
