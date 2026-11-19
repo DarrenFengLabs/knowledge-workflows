@@ -63,8 +63,8 @@ class Transform(unittest.TestCase):
         self.assertEqual(out, "\\<think> 标签，Vec\\<T>，a \\< b，\\~约数\\~，~~删除~~，<u>划线</u>")
 
     def test_english_original_to_feishu_gray(self):
-        out, _ = self.t("<small>Old style.</small>\n\n<span style=\"color:#8f959e\">New <u>style</u>.</span>\n\n`<small>代码</small>`")
-        self.assertEqual(out, '<span text-color="gray">Old style.</span>\n\n<span text-color="gray">New <u>style</u>.</span>\n\n`<small>代码</small>`')
+        out, _ = self.t("<span style=\"color:#8f959e\">English <u>original</u>.</span>\n\n`<span style=\"color:#8f959e\">代码</span>`")
+        self.assertEqual(out, '<span text-color="gray">English <u>original</u>.</span>\n\n`<span style=\"color:#8f959e\">代码</span>`')
 
     def test_code_untouched(self):
         body = "行内 `a<b ~x` 不动\n```python\nif a < b: x = ~y\n```\n后面 <x>"

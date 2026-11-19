@@ -86,8 +86,8 @@ SPAN = (
 )
 ADJACENT_SPANS = re.compile(rf"({SPAN})( +)(?={SPAN})")
 
-# 双语剪藏的英文原文：新写法是灰色字 span（颜色取飞书文字灰），旧剪藏是 <small>；上传时都转成飞书的灰色字。
-GRAY_OPEN = re.compile(r'<small>|<span style="color:\s*#8f959e;?">', re.I)
+# 双语剪藏的英文原文是灰色字 span（颜色取飞书文字灰），上传时转成飞书的灰色字。
+GRAY_OPEN = re.compile(r'<span style="color:\s*#8f959e;?">', re.I)
 
 GENERIC_ALTS = {"", "image", "img", "图片", "图", "picture", "photo"}
 
@@ -289,7 +289,7 @@ def transform_body(body: str, resolve) -> tuple[str, list[dict]]:
         line = AUTOLINK.sub(lambda m: p.put(f"[{m.group('url')}]({m.group('url')})"), line)
         line = LINK_DEST.sub(lambda m: p.put(m.group(0)), line)
         line = _escape_text(line)
-        line = GRAY_OPEN.sub('<span text-color="gray">', line).replace("</small>", "</span>")
+        line = GRAY_OPEN.sub('<span text-color="gray">', line)
         line = p.restore(line)
         line = ADJACENT_SPANS.sub(lambda m: m.group(1) + " " * len(m.group(2)), line)
         out_lines.append(line)

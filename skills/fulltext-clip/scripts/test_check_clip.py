@@ -96,9 +96,6 @@ class CheckClip(unittest.TestCase):
         self.assertNotIn("F5", codes(doc(ok)))
         self.assertNotIn("F2", codes(doc(ok)))
 
-    def test_old_small_tag_flagged(self):
-        self.assertIn("F2", codes(doc("<small>Hello.</small>\n\n你好。")))
-
     def test_emphasis_and_tags(self):
         self.assertIn("F1", codes(doc("这是**结论。**后文")))
         self.assertIn("F2", codes(doc("这是<u>没闭合的下划线。")))

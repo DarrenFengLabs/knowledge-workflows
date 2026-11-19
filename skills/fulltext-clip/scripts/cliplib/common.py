@@ -178,7 +178,7 @@ def minutes_text(seconds) -> str | None:
 # ---------- 文字 ----------
 
 # 双语成品里的英文原文用灰色字，颜色取飞书的文字灰 #8f959e：Obsidian 里看起来和传进飞书后一样
-# （clip-archive 上传时转成飞书的灰色字）。2026-11-18 起取代 <small> 小字。
+# （clip-archive 上传时转成飞书的灰色字）。
 EN_OPEN = '<span style="color:#8f959e">'
 EN_CLOSE = "</span>"
 EN_RE = re.compile(r'<span style="color:#8f959e">(.*?)</span>', re.S)

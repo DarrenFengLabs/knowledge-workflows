@@ -308,8 +308,6 @@ def check(text: str, ctx: dict) -> dict:
             add("违规", "F2", "下划线标签不成对", no, p)
         if p.count(EN_OPEN) != p.count("</span>"):
             add("违规", "F2", "英文灰色字标签不成对", no, p)
-        if "<small>" in p:
-            add("违规", "F2", "英文原文改用灰色字写法，不用 <small>（见 write.md）", no, p)
         m = re.fullmatch(r"(?:🎙️\s*)?(?:[^：\n]{1,12}：)?<u>((?:(?!</?u>).)+)</u>[。！？]?", p.strip(), re.S)
         if m and len(m.group(1)) > 60:
             add("提醒", "F3", "整段画了下划线，只画关键句", no, p)
