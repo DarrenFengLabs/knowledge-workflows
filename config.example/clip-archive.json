@@ -1,0 +1,10 @@
+{
+  "src_dir": "<待上传剪藏所在文件夹的绝对路径，如暂存库里的 存飞书/>",
+  "vault_dir": "<暂存库（Obsidian 库）根目录的绝对路径，用来找 ![[粘贴图]] 这类嵌入图片>",
+  "staging_dir": "<每次运行的工作目录和报告放这里；用本地、不同步的目录>",
+  "space_id": "<飞书知识库「全文剪藏」的 space_id>",
+  "long_node": "<「3单篇」节点 token>",
+  "short_node": "<「4短篇」节点 token>",
+  "files_node": "<「5文件」节点 token（手动归档原始文件时用，脚本不用）>",
+  "short_max_words": 800
+}
