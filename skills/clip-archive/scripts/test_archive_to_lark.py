@@ -4,9 +4,14 @@
 运行：python3 scripts/test_archive_to_lark.py
 """
 
+import contextlib
+import io
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -131,6 +136,41 @@ class Images(unittest.TestCase):
         self.assertEqual(a.sniff_image(b"\x89PNG\r\n\x1a\n...."), "png")
         self.assertEqual(a.sniff_image(b"RIFF\x00\x00\x00\x00WEBPVP8 "), "webp")
         self.assertIsNone(a.sniff_image(b"<html>forbidden</html>"))
+
+
+class AuthStop(unittest.TestCase):
+    """传到中途授权失效：退出码 2，照样写报告并打印路径，后面的篇标成没处理，本地一篇不删。"""
+
+    def test_auth_failure_mid_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            src, staging = tmp / "存飞书", tmp / "staging"
+            src.mkdir()
+            staging.mkdir()
+            for name in ("a.md", "b.md"):
+                (src / name).write_text("正文\n", "utf-8")
+            cfg = tmp / "cfg.json"
+            cfg.write_text(json.dumps({"src_dir": str(src), "staging_dir": str(staging), "space_id": "s",
+                                       "short_node": "S", "long_node": "L"}), "utf-8")
+
+            def fake_lark(args, cwd=None, timeout=600):
+                if args[:2] == ["wiki", "+node-list"]:
+                    return {"nodes": []}
+                if args[:2] == ["docs", "+create"]:
+                    raise a.LarkError("token_expired", auth=True)
+                raise AssertionError(f"没预料到的调用：{args}")
+
+            out, err = io.StringIO(), io.StringIO()
+            with mock.patch.object(a, "lark", fake_lark), contextlib.redirect_stdout(out), \
+                    contextlib.redirect_stderr(err):
+                rc = a.main(["run", "--config", str(cfg)])
+            self.assertEqual(rc, 2)
+            report = Path(out.getvalue().strip().splitlines()[-1])
+            self.assertEqual(report.name, "report.md")
+            text = report.read_text("utf-8")
+            self.assertIn("失败：飞书授权问题", text)
+            self.assertIn("没处理：授权失效，脚本已停", text)
+            self.assertTrue((src / "a.md").exists() and (src / "b.md").exists())
 
 
 if __name__ == "__main__":

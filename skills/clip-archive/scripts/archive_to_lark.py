@@ -16,7 +16,8 @@
   python3 archive_to_lark.py run --item PATH ...      # 只处理指定的文件或文件夹（默认是 存飞书/ 里的全部）
 
 配置：仓库根目录 `.local/clip-archive.json`（见 SKILL.md）。报告写在 staging_dir 下本次任务目录的 report.md。
-退出码：0 全部成功；1 有篇没成功（看报告）；2 配置或授权问题，整批没跑。
+退出码：0 全部成功；1 有篇没成功（看报告）；2 缺配置、授权失效或读不到飞书目录，脚本停下了。
+开头就停的一篇没传、没有报告；传到中途因授权失效停的，前面几篇已传完，照样写报告并打印路径。
 """
 
 from __future__ import annotations
@@ -668,8 +669,11 @@ def run(args) -> int:
         except LarkError as e:
             if e.auth:
                 it.status = f"失败：飞书授权问题（{e}）"
+                for later in items[n:]:
+                    later.status = "没处理：授权失效，脚本已停"
                 print(f"飞书授权问题，停止：{e}", file=sys.stderr)
                 write_report(job, items, skipped, args, test_mode)
+                print(job / "report.md")
                 return 2
             it.status = f"失败：建文档出错（{e}）"
             continue
