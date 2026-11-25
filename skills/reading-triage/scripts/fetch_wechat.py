@@ -5,6 +5,14 @@
   python3 fetch_wechat.py urls.txt --out txt/            # 抓正文
   python3 fetch_wechat.py urls.txt --meta                # 只要元数据(TSV)
 
+urls.txt 每行一个链接;也可以每行写“ID<Tab>链接”,这时正文存为 <ID>.txt,
+和候选账本、精读代理用的文件名一致。只有链接时按标题命名。
+
+输出每篇一行(TSV): 链接、发布时间、公众号、标题、正文字数。
+  标题一栏写“抓取失败”: 页面没拿到;
+  字数一栏写“正文未定位”: 拿到了页面但找不到正文区,多半是页面结构变了,不写文件;
+  字数一栏写“正文为空”: 正文区里没有文字(如纯图片、视频),不写文件。
+
 注意: 只有 mp.weixin.qq.com/s/<hash> 短链能抓到内容。
       /s?__biz=...&mid=...&idx=...&sn=... 长链服务端不直出(换 UA 也没用),
       但在浏览器里正常 —— 遇到长链请原样交付给用户,不要声称"链接无效"。
@@ -27,7 +35,9 @@ def meta(h):
 def body(h):
     m = (re.search(r'<div class="rich_media_content[^>]*id="js_content"[^>]*>(.*?)</div>\s*</div>\s*<script', h, re.S)
          or re.search(r'id="js_content"[^>]*>(.*)', h, re.S))
-    b = m.group(1) if m else h
+    if not m:
+        return None  # 找不到正文区:报“正文未定位”,不拿整页文字凑数
+    b = m.group(1)
     b = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', b, flags=re.S)
     b = re.sub(r'<br\s*/?>|</p>|</h\d>|</li>|</section>', '\n', b, flags=re.I)
     b = html.unescape(re.sub(r'<[^>]+>', '', b))
@@ -38,29 +48,40 @@ def main():
     ap.add_argument("urlfile"); ap.add_argument("--out", default=None)
     ap.add_argument("--meta", action="store_true"); ap.add_argument("-j", type=int, default=5)
     a = ap.parse_args()
-    urls = [l.strip() for l in open(a.urlfile) if l.strip().startswith("http")]
+    jobs = []  # (ID 或 None, 链接)
+    for l in open(a.urlfile, encoding="utf-8"):
+        l = l.strip()
+        if "\t" in l:
+            k, u = (x.strip() for x in l.split("\t", 1))
+            if u.startswith("http"): jobs.append((k or None, u))
+        elif l.startswith("http"):
+            jobs.append((None, l))
     if a.out: os.makedirs(a.out, exist_ok=True)
 
     lock = threading.Lock()
 
-    def one(u):
+    def one(job):
+        k, u = job
         h = get(u); m = meta(h); b = body(h) if a.out else ""
-        if a.out and m["title"]:
+        if a.out and m["title"] and b:
             # 不同文章可能同标题(转载、系列、截断后同名)——加序号,绝不静默覆盖。
             # 建目录/查存在/写入必须在同一把锁里,否则并发下仍会撞。
-            n = re.sub(r'[\\/:*?"<>|\s]+', '_', m["title"])[:50] or "untitled"
+            n = re.sub(r'[\\/:*?"<>|\s]+', '_', k or m["title"])[:50] or "untitled"
             with lock:
                 p = os.path.join(a.out, n + ".txt"); i = 2
                 while os.path.exists(p):
                     p = os.path.join(a.out, f"{n}_{i}.txt"); i += 1
                 open(p, "w", encoding="utf-8").write(b)
-        return u, m, len(b)
+        return u, m, b
 
     ok = 0
     with cf.ThreadPoolExecutor(a.j) as ex:
-        for u, m, n in ex.map(one, urls):
-            if m["title"]: ok += 1
+        for u, m, b in ex.map(one, jobs):
+            if not m["title"]: n = 0
+            elif a.out and b is None: n = "正文未定位"
+            elif a.out and not b: n = "正文为空"
+            else: n = len(b); ok += 1
             print(f"{u}\t{m['time'] or 'NA'}\t{m['acct'] or 'NA'}\t{m['title'] or '抓取失败'}\t{n}")
-    print(f"\n# {ok}/{len(urls)} 成功", file=sys.stderr)
+    print(f"\n# {ok}/{len(jobs)} 成功", file=sys.stderr)
 
 if __name__ == "__main__": main()
