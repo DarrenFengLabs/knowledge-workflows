@@ -44,4 +44,4 @@ skill 正文只写“强档”“中档”，不写具体模型。强档用于�
 - SKILL.md 保持在 500 行内；任何时候都适用的规则放在前面，细节放 `references/`。批量流程里每个角色只读自己的说明文件，单个说明文件控制在约 150 行内。
 - `references/lark-auth.md` 在 `fulltext-clip`、`model-table`、`clip-archive` 各有一份，除开头一句、“申请哪些权限”里的清单及说明、二维码存放目录外保持一致；改一处同步另外两处。
 - `fulltext-clip/scripts/check_clip.py` 里的强调标记检查与 `notes-with-media/scripts/check_format.py` 同源，改一处同步另一处。
-- 改完用真实样例回归，样例清单在 `.local/samples.md`；`notes-with-media` 用 `scripts/check_format.py` 对比改前改后的违规数与斜体、金句、表格数。
+- 改完默认不跑模型回归（派子代理重跑样例、整篇对比、盲评）：2026-11-24 用户定，这类测试花费不小，对结论帮助不大。先做不花模型额度的检查：脚本用造的数据测，检查脚本照跑（`notes-with-media` 用 `scripts/check_format.py` 对比改前改后的违规数与斜体、金句、表格数），再逐条对照改前改后的文件，确认没丢规则、每条只写一处。确实需要拿样例跑时，只抽一小块，先说花费、等用户点头；样例清单在 `.local/samples.md`。
