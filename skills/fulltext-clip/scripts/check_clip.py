@@ -7,7 +7,7 @@
 
 查四类问题：
   没整理   残留平台说话人标签、段落标记、时间码、口头禅、小写英文缩写（识别错误），字数几乎没变
-  删多了   字数比例偏低（全篇和每块分别算；只出中文的翻译按“汉字数 / 英文词数”算）
+  删多了   字数比例偏低（全篇和每块分别算；翻译按“中文汉字数 / 原稿英文词数”算，双语稿也算）
   标错人   人名加粗；单人内容出现 🎙️；无标签原稿里出现“名字：”或“说话人N”；同一段既有 🎙️ 又有名字
   格式     结构顺序、背景表必填项、一级标题、双语配对、强调标记、下划线密度；列出全部〔?〕
 “违规”要修，“提醒”要看一眼再决定。有违规时退出码为 1。
@@ -224,7 +224,7 @@ def check(text: str, ctx: dict) -> dict:
     src_chars, src_cjk = ctx.get("source_chars"), ctx.get("source_cjk")
     mode = ctx.get("mode")
     ratio = None
-    if mode == "翻译" and not bilingual and ctx.get("source_words") and zh_cjk:
+    if mode == "翻译" and ctx.get("source_words") and zh_cjk:  # 双语稿也查：zh_cjk 已去掉英文原文
         # 中文汉字数约为英文词数的 1.15–1.87 倍（2026-10 对 18 篇旧双语稿的统计，多数 1.3–1.5）
         per_word = zh_cjk / ctx["source_words"]
         metrics["zh_per_en_word"] = round(per_word, 2)
@@ -367,7 +367,7 @@ def job_context(job_dir: Path) -> dict:
                 s_n, o_n = len(re.sub(r"\s", "", s_text)), len(re.sub(r"\s", "", o_text))
             if t["kind"] == "精修" and s_n:
                 ctx["chunk_ratios"].append({"chunk": t["chunk"], "ratio": round(o_n / s_n, 3)})
-            elif t["kind"] == "翻译-精修" and not t.get("bilingual"):
+            elif t["kind"] == "翻译-精修":  # o_cjk 已去掉英文原文，双语块也按中文算
                 words = len(re.findall(r"[A-Za-z]+", s_text))
                 if words:
                     ctx["chunk_ratios"].append({"chunk": t["chunk"], "kind": "翻译", "ratio": round(o_cjk / words, 3)})

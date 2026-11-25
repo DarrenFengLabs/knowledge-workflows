@@ -177,6 +177,41 @@ class EndToEnd(unittest.TestCase):
         self.assertIn("| 原标题 | [文章](https://example.com/a) |", final)
         self.assertIn("## 正文", final)
 
+    def test_bilingual_default(self):
+        # 没点名时：英文干净的出双语，要重写的只出中文；点名的照办
+        src = self.tmp / "article.md"
+        src.write_text("\n\n".join(["This is a clean English sentence, with proper punctuation. It reads well."] * 20),
+                       encoding="utf-8")
+        job = self.tmp / "job_bi"
+        self.assertEqual(run(HERE / "prep.py", "init", "--input", src, "--job-dir", job).returncode, 0)
+        stats = json.loads((job / "stats.json").read_text(encoding="utf-8"))
+        self.assertEqual(stats["suggested_mode"], "翻译")
+        self.assertTrue(stats["en_clean"])
+        base = {"content_type": "文章", "mode": "翻译", "speaker_mode": "none", "title": "A", "title_zh": "甲",
+                "published": "", "source_line": "测试"}
+
+        def tasks_for(**extra):
+            (job / "sheet.json").write_text(json.dumps({**base, **extra}, ensure_ascii=False), encoding="utf-8")
+            r = run(HERE / "prep.py", "apply-sheet", "--job-dir", job)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return json.loads((job / "tasks.json").read_text(encoding="utf-8"))
+
+        self.assertTrue(all(t["kind"] == "翻译-整理" and t["bilingual"] for t in tasks_for(bilingual=None)))
+        self.assertTrue(all(t["kind"] == "翻译-精修" and not t["bilingual"] for t in tasks_for(en_needs_cleanup=True)))
+        self.assertTrue(all(not t["bilingual"] for t in tasks_for(bilingual=False)))
+        self.assertTrue(all(t["bilingual"] for t in tasks_for(bilingual=True, en_needs_cleanup=True)))
+
+    def test_suspected_excerpt_note(self):
+        job = self.tmp / "job_cov"
+        (job / "out").mkdir(parents=True)
+        (job / "out" / "001.md").write_text("正文内容。\n", encoding="utf-8")
+        (job / "meta.json").write_text(json.dumps({"duration_s": 3600}), encoding="utf-8")
+        (job / "sheet.json").write_text(json.dumps({"title": "T", "mode": "精修"}), encoding="utf-8")
+        (job / "stats.json").write_text(json.dumps({"coverage": {"ratio": 0.42, "suspect": True}}), encoding="utf-8")
+        self.assertEqual(run(HERE / "assemble.py", "build", "--job-dir", job).returncode, 0)
+        final = (job / "final.md").read_text(encoding="utf-8")
+        self.assertIn("疑似节选：原稿文字量只有按时长估算下限的 42%", final)
+
     def test_translation_pairing(self):
         job = self.tmp / "job3"
         (job / "chunks").mkdir(parents=True)

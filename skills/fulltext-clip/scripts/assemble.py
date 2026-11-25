@@ -8,7 +8,8 @@
 
 build 读 meta.json、sheet.json、header.md（大纲、术语）、out/*（正文）、tail.md（补充细节），
 生成 final.md：背景信息表由脚本按元信息生成，规模里的字数按成品正文实数计算；
-翻译档默认只出中文；用户要双语时，英文干净的块按段落编号把英文原文（灰色字）与中文译文配对。
+翻译档按 tasks.json 的 bilingual：英文干净的块按段落编号把英文原文（灰色字）与中文译文配对，只出中文时去掉段号。
+准备脚本判为疑似节选（文字量不足按时长估算下限的 60%）时，规模一栏注明。
 小标题行末尾的段号（〔s12〕）换成原片时间点，YouTube、B站做成可点击的跳转链接。
 digest 把收尾要看的东西压成一屏：工作单要点、互动数、各块小标题和笔记、全部〔?〕、断在句中的接缝、读者画像。
 publish 按“发布日期_中文标题.md”命名，同名不覆盖（除非 --overwrite 或 --rename），写入后回读核对。
@@ -53,13 +54,16 @@ def size_text(body: str, bilingual: bool) -> str:
     return f"正文{zh(len(plain))}"
 
 
-def background(meta: dict, sheet: dict, body: str, bilingual: bool) -> str:
+def background(meta: dict, sheet: dict, body: str, bilingual: bool, stats: dict | None = None) -> str:
     title = sheet.get("title") or meta.get("title") or "未注明"
     url = sheet.get("url") if "url" in sheet else meta.get("url")
     title_cell = f"[{cell(title)}]({url})" if url else cell(title)
     published = sheet.get("published") or meta.get("published_date") or "未注明"
     duration = minutes_text(meta.get("duration_s"))
     scale = " · ".join(x for x in [duration, size_text(body, bilingual)] if x)
+    cov = (stats or {}).get("coverage") or {}
+    if cov.get("suspect") and cov.get("ratio") is not None:
+        scale += f"（疑似节选：原稿文字量只有按时长估算下限的 {cov['ratio']:.0%}）"
     rows = [("原标题", title_cell), ("来源", cell(sheet.get("source_line") or meta.get("source") or "未注明")),
             ("发布时间", cell(published)), ("规模", scale)]
     if sheet.get("speakers_line"):
@@ -147,7 +151,7 @@ def cmd_digest(args) -> int:
     tasks = read_json(job / "tasks.json", []) or []
     lines = ["== 工作单",
              f"类型 {sheet.get('content_type')} · 档位 {sheet.get('mode')} · 说话人 {sheet.get('speaker_mode')} · "
-             f"双语 {'是' if sheet.get('bilingual') else '否'} · 共 {len(tasks) or 1} 块"]
+             f"双语 {'是' if any(t.get('bilingual') for t in tasks) else '否'} · 共 {len(tasks) or 1} 块"]
     if sheet.get("speakers_line"):
         lines.append(f"说话人：{sheet['speakers_line']}")
     for r in sheet.get("related") or []:
@@ -215,7 +219,8 @@ def cmd_build(args) -> int:
     body, missing = body_text(job, sheet, meta)
     body = re.sub(r"\n{3,}", "\n\n", body).strip()
     bilingual = EN_OPEN in body
-    parts = [background(meta, sheet, body, bilingual)]
+    stats = read_json(job / "stats.json", {}) or {}
+    parts = [background(meta, sheet, body, bilingual, stats)]
     header = job / "header.md"
     if header.exists() and header.read_text(encoding="utf-8").strip():
         parts.append(header.read_text(encoding="utf-8").strip())

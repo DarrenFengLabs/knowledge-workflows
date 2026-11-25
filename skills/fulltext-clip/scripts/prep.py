@@ -264,7 +264,9 @@ def cmd_apply_sheet(args) -> int:
             task = {"chunk": k, "input": f"chunks/{k}.md", "output": f"out/{k}.zh.md" if en_clean else f"out/{k}.md",
                     "notes": f"notes/{k}.json", "kind": kind}
             if mode == "翻译":
-                task["bilingual"] = bool(sheet.get("bilingual"))  # 默认只出中文，用户要求双语才配英文
+                # 用户点名的照办；没点名时英文干净的出双语（英文由脚本配，不多花额度），要重写的只出中文
+                want = sheet.get("bilingual")
+                task["bilingual"] = bool(en_clean) if want is None else bool(want)
             tasks.append(task)
     (job_dir / "notes").mkdir(exist_ok=True)
     write_json(job_dir / "tasks.json", tasks)

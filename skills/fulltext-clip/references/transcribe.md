@@ -13,7 +13,7 @@ for c in whisper-cli ffmpeg ffprobe; do printf "%-12s %s\n" "$c" "$(command -v "
 test -f "$WHISPER_MODEL" || echo "模型缺失"
 ```
 
-模型路径取自 `.local/paths.md` 的 `WHISPER_MODEL`，没有时询问用户。缺工具或模型时，先说明缺什么、拟执行的安装动作（如 `brew install whisper-cpp ffmpeg`），得到同意再装；不擅自换模型。
+模型路径取自 `.local/paths.md` 的 `WHISPER_MODEL`，没有时询问用户。缺工具或模型时，按 SKILL.md 的工具规则先问用户，安装命令如 `brew install whisper-cpp ffmpeg`；换模型同样先问。
 
 ## 直接调用脚本
 
@@ -31,10 +31,9 @@ bash scripts/transcribe_long_media.sh --input "<输入文件>" --job-dir "<任�
 
 ## 说话人
 
-whisper.cpp 不区分说话人。本机转写的文字按 write.md 的规则处理：只给能确定的主持人提问加 🎙️，其余不标。用户明确要求区分说话人时，再评估其他办法（平台带说话人的文字稿、飞书妙记转写、本机说话人分离工具），先说明成本和把握。
+whisper.cpp 不区分说话人，本机转写的稿子没有说话人标签。正文怎么标见 write.md；用户要求区分说话人时怎么办，见 dispatch.md 的“派活提示”。
 
 ## 失败
 
 - ffmpeg 报 `Operation not permitted`：宿主应用或系统的文件访问权限问题。先实测路径是否可读，可请用户把文件移到已授权的目录，或给宿主授权。
-- 转写中断、输出为空或明显截断：保留任务目录，报告失败步骤、错误信息和已生成的文件；不拿半截稿继续交付。
-- 多个文件时，一个失败就保留它的目录，接着处理其他文件，最后分别报告。
+- 转写中断、输出为空或明显截断：保留任务目录（用相同参数可以断点续跑），报告失败步骤、错误信息和已生成的文件；不拿半截稿往下做。
